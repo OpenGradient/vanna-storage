@@ -1,9 +1,14 @@
 from flask import Flask, request
 from ipfshttpclient import connect
+import subprocess
 
 app = Flask(__name__)
 
+UPLOAD_FOLDER = './uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 @app.route('/upload', methods=['POST'])
+
 def uploadFile():
     if 'file' not in request.files:
         return 'No file part'
@@ -14,17 +19,13 @@ def uploadFile():
     if file.filename == '':
         return 'No selected file'
 
-    # Else, upload the file to IPFS
-    ipfs_client = connect('/ip4/3.140.191.156/tcp/4001/p2p/12D3KooWQWntZ1RYAxBtqbPcRz1e24o9xzXkvieJnhhNAC6xKwAF')
+    # Save the file and upload it to IPFS
+    file_path = f"{app.config['UPLOAD_FOLDER']}/{file.filename}"
+    file.save(file_path)
+    cid = subprocess.getoutput("ipfs add " + file_path)
 
-    # Upload the file to IPFS
-    ipfs_response = ipfs_client.add_bytes(file.read())
-
-    # Get the IPFS hash of the uploaded file
-    ipfs_hash = ipfs_response['Hash']
-
-    return f'File uploaded to IPFS with hash: {ipfs_hash}' 
+    return f'File uploaded to IPFS with hash: {cid}'
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')
 
