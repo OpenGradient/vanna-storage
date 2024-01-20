@@ -1,5 +1,4 @@
 from flask import Flask, request
-from ipfshttpclient import connect
 import subprocess
 
 app = Flask(__name__)
@@ -22,10 +21,9 @@ def uploadFile():
     # Save the file and upload it to IPFS
     file_path = f"{app.config['UPLOAD_FOLDER']}/{file.filename}"
     file.save(file_path)
-    cid = subprocess.getoutput("ipfs add " + file_path)
+    cid = subprocess.getoutput("ipfs add " + file_path).split("added ")[1].split(" ")[0]
 
     return f'File uploaded to IPFS with hash: {cid}'
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
-
