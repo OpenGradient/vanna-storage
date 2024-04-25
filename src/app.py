@@ -21,7 +21,7 @@ def upload():
 
     # Save the file to local disk first
     unique_file_name = f"{file.filename}-{uuid.uuid4()}"
-    file_path = f"{app.config['MODEL_FOLDER']}/{unique_file_name}"
+    file_path = os.path.join(app.config['MODEL_FOLDER'], unique_file_name)
     file.save(file_path)
 
     # upload to IPFS
@@ -31,19 +31,21 @@ def upload():
 
 @app.route('/download', methods=['GET'])
 def download():
-    filename = request.args.get('cid')
-    filepath = MODEL_FOLDER + "/" + filename
-    # Check if the file exists
-    if not os.path.exists(filepath):
-        retrieveFile(filename)
-    if os.path.exists(filepath):
-        # Return the file as a response
-        return send_file(filepath, as_attachment=True)
-    else:
-        return "File not found", 404
+    file_cid = request.args.get('cid')
+    file_path = os.path.join(app.config['MODEL_FOLDER'], file_cid)
 
-def retrieveFile(filename):
-    os.system("ipfs get " + filename + " -o " + MODEL_FOLDER + "/" + filename)
+    # Download file if not stored locally
+    if not os.path.exists(file_path):
+        downloadFromIPFS(file_cid)
+
+    if os.path.exists(file_path):
+        # Return the file as a response
+        return send_file(file_path, as_attachment=True)
+    else:
+        return Response("File not found", status=404)
+
+def downloadFromIPFS(cid):
+    os.system(f"ipfs get {cid} -o {MODEL_FOLDER}/{cid}")
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
