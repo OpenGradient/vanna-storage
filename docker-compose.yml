@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  ipfs:
+    image: ipfs/go-ipfs:latest
+    ports:
+      - "5001:5001" # API port
+      - "8080:8080" # Gateway port
+      - "4001:4001" # Swarm port
+    volumes:
+      - ipfs_staging:/export
+      - ipfs_data:/data/ipfs
+
+  server:
+    image: vanna-storage
+    ports:
+      - "5045:5000"
+    depends_on:
+      - ipfs
+    volumes:
+      - ./data:/data
+
+volumes:
+  ipfs_staging:
+  ipfs_data:
