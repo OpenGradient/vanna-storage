@@ -1,14 +1,17 @@
 version: '3.8'
 services:
   ipfs:
-    image: ipfs/go-ipfs:latest
+    image: ipfs/kubo:master-2024-04-17-eb97cf9
     ports:
       - "5001:5001" # API port
       - "8080:8080" # Gateway port
       - "4001:4001" # Swarm port
+    environment:
+      - LIBP2P_FORCE_PNET=1
     volumes:
       - ipfs_staging:/export
       - ipfs_data:/data/ipfs
+      - ${PWD}/ipfs/swarm.key:/data/ipfs/swarm.key
 
   server:
     image: vanna-storage
