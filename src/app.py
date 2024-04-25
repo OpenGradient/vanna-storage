@@ -1,6 +1,7 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, Response
 import subprocess
 import os
+import uuid
 
 app = Flask(__name__)
 
@@ -10,20 +11,23 @@ app.config['MODEL_FOLDER'] = MODEL_FOLDER
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'file' not in request.files:
-        return 'No file part'
+        return Response('No file part', status=400)
 
     file = request.files['file']
 
     # If the user does not select a file, the browser submits an empty file without a filename
     if file.filename == '':
-        return 'No selected file'
+        return Response('No selected file', status=400)
 
-    # Save the file and upload it to IPFS
-    file_path = f"{app.config['MODEL_FOLDER']}/{file.filename}"
+    # Save the file to local disk first
+    unique_file_name = f"{file.filename}-{uuid.uuid4()}"
+    file_path = f"{app.config['MODEL_FOLDER']}/{unique_file_name}"
     file.save(file_path)
+
+    # upload to IPFS
     cid = subprocess.getoutput("ipfs add " + file_path).split("added ")[1].split(" ")[0]
 
-    return f'File uploaded to IPFS with hash: {cid}'
+    return cid
 
 @app.route('/download', methods=['GET'])
 def download():
