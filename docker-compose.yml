@@ -12,6 +12,7 @@ services:
       - ipfs_staging:/export
       - ipfs_data:/data/ipfs
       - ${PWD}/ipfs/swarm.key:/data/ipfs/swarm.key
+      - ${PWD}/ipfs/init.sh:/container-init.d/ipfs-init.sh
 
   server:
     image: vanna-storage
