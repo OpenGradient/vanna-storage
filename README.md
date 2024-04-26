@@ -1,13 +1,19 @@
 # vanna-storage
+
 Decentralized Private IPFS Filestore for Vanna Blockchain
 
-## How to run a storage node
-After cloning the repository we need to first install IPFS and other library dependencies:\
-```bash
-bash setup.sh
-```
+Consists of 2 services:
 
-After which, we can add the bootstrap IPFS node and kick up your own local version of ipfs
-```bash
-bash start.sh
-```
+- `vanna-storage`: storage node exposing model storage APIs on top of IPFS
+- `ipfs`: IPFS node configured with private swarm
+
+## How to run 
+
+We use Docker and docker-compose to run these services.
+
+First, to build the `vanna-storage` docker image, run `make docker`.
+
+Once this is done, run `make run` to start up the 2 docker containers.
+If you only want to start/restart a single service, use `docker-compose up ipfs` or `docker-compose up vanna-storage`.
+
+To run a server locally, outside of docker, you need to install `virtualenv` and install dependencies from the `requirements.txt` file, then run `python3 src/app.py`.
