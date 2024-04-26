@@ -17,7 +17,7 @@ services:
   server:
     image: vanna-storage
     ports:
-      - "5045:5000"
+      - "5000:5000"
     depends_on:
       - ipfs
     volumes:
