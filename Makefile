@@ -6,4 +6,3 @@ docker:
 
 dev:
 	python3 src/app.py
-
