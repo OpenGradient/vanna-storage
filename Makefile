@@ -1,5 +1,8 @@
 run:
-	python3 src/app.py
+	docker-compose up
 
 docker:
 	docker build . -t vanna-storage
+
+dev:
+	python3 src/app.py
