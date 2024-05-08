@@ -43,6 +43,9 @@ def upload():
 def download():
     file_cid = request.args.get('cid')
 
+    if not file_cid:
+        return Response('Empty CID', 400)
+
     # check input for traversal attack
     if os.path.basename(file_cid) != file_cid:
         return Response('Invalid CID', 400)
