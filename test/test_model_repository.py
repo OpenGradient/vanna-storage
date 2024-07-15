@@ -22,9 +22,14 @@ class TestModelRepository(unittest.TestCase):
         self.assertTrue(self.model_id in self.model_repo.models)
 
     def test_download_model(self):
-        self.model_repo.upload_model(self.model_id, self.serialized_model)
-        downloaded_model = self.model_repo.download_model(self.model_id)
-        self.assertIsNotNone(downloaded_model)
+        # Upload a model first
+        version = "1.0"
+        manifest_cid = self.model_repo.upload_model(self.model_id, self.serialized_model, version)
+
+        # Now try to download it
+        downloaded_model = self.model_repo.download_model(self.model_id, version)
+        
+        self.assertEqual(self.model_data, pickle.loads(downloaded_model))
 
     def test_validate_version(self):
         self.model_repo.upload_model(self.model_id, self.serialized_model)
@@ -33,7 +38,7 @@ class TestModelRepository(unittest.TestCase):
         self.assertFalse(self.model_repo.validate_version('non_existent_model', '1.0'))
 
     def test_add_model(self):
-        self.model_repo.upload_model(self.model_id, self.serialized_model)
+        self.model_repo.upload_model(self.model_id, self.serialized_model, "1.0")
         new_model_data = self.model_data.copy()
         new_model_data['version'] = '1.1'
         new_serialized_model = pickle.dumps(new_model_data)
