@@ -7,11 +7,14 @@ import pickle
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from model_repository import ModelRepository
-from ipfs_client import ipfs_client
 
 class TestModelRepository(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.model_repo = ModelRepository()
+        cls.model_repo.initialize_metadata()
+
     def setUp(self):
-        self.model_repo = ModelRepository()
         self.model_id = "test_model"
         self.model_data = {"name": "Test Model", "version": "1.0"}
         self.serialized_model = pickle.dumps(self.model_data)

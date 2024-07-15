@@ -1,11 +1,30 @@
 import json
 import os
+import time
 from typing import Dict, List
 from ipfs_client import ipfs_client
 from packaging.version import parse  # Import the parse function here
 
 # Assuming the existence of a config.py for storing configurations
 from model_config import MODEL_FOLDER
+from functools import wraps
+
+# Rate limiting decorator
+def rate_limit(limit_seconds):
+    def decorator(func):
+        last_called = 0
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            nonlocal last_called
+            elapsed = time.time() - last_called
+            if elapsed < limit_seconds:
+                raise ValueError(f"Rate limit exceeded. Please wait {limit_seconds - elapsed:.2f} seconds.")
+            result = func(*args, **kwargs)
+            last_called = time.time()
+            return result
+        return wrapper
+    return decorator
+
 
 
 
@@ -15,11 +34,65 @@ class ModelRepository:
         self.metadata_cid = None
         self.initialize_metadata()
 
-    def initialize_metadata(self):
-        with ipfs_client() as client:
-            initial_metadata = {}
-            result = client.add_json(json.dumps(initial_metadata))
-            self.metadata_cid = self.extract_hash(result)
+    @rate_limit(0)  # Limit to once every 5 minutes (set back to 300)
+    def initialize_metadata(self, force=False):
+        """
+        Initializes or resets the metadata for the ModelRepository with added safeguards.
+
+        This method creates a new, empty metadata structure and stores it in IPFS.
+        It includes safeguards such as confirmation, backup, printing, and rate limiting.
+
+        Args:
+            force (bool): If True, bypasses the confirmation prompt. Use with caution.
+
+        Returns:
+            str: The CID (Content Identifier) of the newly initialized metadata in IPFS.
+
+        Raises:
+            ValueError: If the operation is cancelled by the user or rate limit is exceeded.
+            ipfshttpclient.exceptions.Error: If there's an error communicating with the IPFS daemon.
+            json.JSONEncodeError: If there's an error encoding the empty dictionary to JSON.
+
+        Example:
+            >>> repo = ModelRepository()
+            >>> metadata_cid = repo.initialize_metadata()
+            >>> print(f"New metadata CID: {metadata_cid}")
+            New metadata CID: QmX1Y2Z3...
+
+        Note:
+            This method should be used with caution as it will overwrite any existing
+            metadata. It's primarily intended for initial setup or in scenarios where
+            a complete reset of the metadata is desired.
+        """
+        if not force:
+            confirmation = input("Warning: This will reset all metadata. Are you sure? (yes/no): ")
+            if confirmation.lower() != 'yes':
+                print("Metadata initialization cancelled by user.")
+                raise ValueError("Operation cancelled by user.")
+
+        print("Initializing metadata...")
+
+        try:
+            # Backup existing metadata if it exists
+            if self.metadata_cid:
+                with ipfs_client() as client:
+                    existing_metadata = client.cat(self.metadata_cid)
+                    backup_cid = client.add_bytes(existing_metadata)
+                    print(f"Backup of existing metadata created with CID: {backup_cid}")
+
+            # Initialize new metadata
+            new_metadata = {}
+            with ipfs_client() as client:
+                result = client.add_json(json.dumps(new_metadata))
+                new_metadata_cid = self.extract_hash(result)
+
+            self.metadata_cid = new_metadata_cid
+            print(f"Metadata initialized successfully. New CID: {new_metadata_cid}")
+            return new_metadata_cid
+
+        except Exception as e:
+            print(f"Error during metadata initialization: {str(e)}")
+            raise
     
     def _store_manifest_cid(self, model_id: str, version: str, manifest_cid: str):
         """
