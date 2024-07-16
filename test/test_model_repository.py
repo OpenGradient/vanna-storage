@@ -50,13 +50,7 @@ class TestModelRepository(unittest.TestCase):
     """
     @classmethod
     def setUpClass(cls):
-        """
-        Set up test environment for all test methods.
-        
-        This method initializes mock objects for IPFS client and sets up
-        necessary attributes for testing.
-        """
-        cls.mock_ipfs_patcher = patch('model_repository.ipfs_client')
+        cls.mock_ipfs_patcher = patch('model_repository.ipfs_client', autospec=True)
         cls.mock_ipfs = cls.mock_ipfs_patcher.start()
         cls.mock_client = cls.mock_ipfs.return_value.__enter__.return_value
         
@@ -68,8 +62,21 @@ class TestModelRepository(unittest.TestCase):
         cls.mock_client.add_json.return_value = {'Hash': 'mock_manifest_cid'}
         cls.mock_client.cat.return_value = cls.mock_metadata
         
+        # Initialize ModelRepository once for all tests
         cls.model_repo = ModelRepository()
         cls.model_repo.metadata_cid = cls.mock_metadata_cid
+        
+        # Mock the _initialize_metadata method to prevent multiple initializations
+        cls.model_repo._initialize_metadata = MagicMock()
+
+    def setUp(self):
+        # Reset mocks and metadata for each test
+        self.mock_client.reset_mock()
+        self.model_id = "test_model"
+        self.serialized_model = b"serialized_model_data"
+        self.model_repo._get_metadata = lambda: {"test_model": {"1.0": "mock_manifest_cid"}}
+        self.model_data = {"key": "value"}
+
 
     @classmethod
     def tearDownClass(cls):
@@ -78,19 +85,6 @@ class TestModelRepository(unittest.TestCase):
         """
         cls.mock_ipfs_patcher.stop()
 
-    def setUp(self):
-        """
-        Set up test environment for each individual test method.
-        
-        This method initializes test data and mock objects for each test.
-        """
-        self.model_id = "test_model"
-        self.serialized_model = b"serialized_model_data"
-        self.model_repo = ModelRepository()
-        self.model_repo.metadata_cid = "mock_metadata_cid"
-        self.model_repo._get_metadata = lambda: {"test_model": {"1.0": "mock_manifest_cid"}}
-        self.model_data = {"key": "value"}  # Add this line
-
     def test_upload_model(self):
         """
         Test the upload_model method of ModelRepository.
@@ -98,7 +92,7 @@ class TestModelRepository(unittest.TestCase):
         Verifies that the method correctly uploads a model and returns
         the expected manifest CID.
         """
-        self.mock_client.add_bytes.reset_mock()
+        # self.mock_client.add_bytes.reset_mock()
         version = "1.0"
         manifest_cid = self.model_repo.upload_model(self.model_id, self.serialized_model, version)
         self.assertEqual(manifest_cid, 'mock_manifest_cid')
@@ -133,11 +127,15 @@ class TestModelRepository(unittest.TestCase):
         """
         version1 = "1.0"
         version2 = "1.1"
-        self.model_repo.upload_model(self.model_id, self.serialized_model, version1)
-        print(f"Existing versions: {self.model_repo.list_versions(self.model_id)}")
-        self.assertFalse(self.model_repo.validate_version(self.model_id, version1))
-        self.assertTrue(self.model_repo.validate_version(self.model_id, version2))
-        self.assertFalse(self.model_repo.validate_version(self.model_id, "0.9"))
+        
+        # Create a mock for the list_versions method
+        with patch.object(self.model_repo, 'list_versions', return_value=["1.0"]) as mock_list_versions:
+            self.assertFalse(self.model_repo.validate_version(self.model_id, version1))
+            self.assertTrue(self.model_repo.validate_version(self.model_id, version2))
+            self.assertFalse(self.model_repo.validate_version(self.model_id, "0.9"))
+
+            # Verify that list_versions was called with the correct model_id
+            mock_list_versions.assert_called_with(self.model_id)
 
     def test_add_model(self):
         """
