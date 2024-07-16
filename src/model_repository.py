@@ -342,3 +342,28 @@ class ModelRepository:
         if not versions:
             raise ValueError(f"No versions available for model_id {model_id}")
         return versions[-1]  # Last version in the sorted list
+    
+    def rollback_version(self, model_id: str, version: str) -> bool:
+        metadata = self._get_metadata()
+        if model_id not in metadata or version not in metadata[model_id]:
+            return False
+
+        versions = list(metadata[model_id].keys())
+        versions.sort(key=lambda v: parse(v), reverse=True)
+        
+        if version == versions[0]:
+            return False  # Already at the specified version
+
+        index = versions.index(version)
+        
+        # Update the 'active' status for all versions
+        for v in versions:
+            metadata[model_id][v] = {
+                'cid': metadata[model_id][v],
+                'active': v == version
+            }
+
+        # Store the updated metadata
+        self._store_manifest_cid(model_id, version, metadata[model_id][version]['cid'])
+
+        return True

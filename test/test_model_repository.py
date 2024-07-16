@@ -77,7 +77,6 @@ class TestModelRepository(unittest.TestCase):
         self.model_repo._get_metadata = lambda: {"test_model": {"1.0": "mock_manifest_cid"}}
         self.model_data = {"key": "value"}
 
-
     @classmethod
     def tearDownClass(cls):
         """
@@ -150,6 +149,39 @@ class TestModelRepository(unittest.TestCase):
         new_serialized_model = pickle.dumps(new_model_data)
         new_manifest_cid = self.model_repo.add_model(self.model_id, new_serialized_model, '1.1')
         self.assertIsNotNone(new_manifest_cid)
+
+    def test_rollback_version(self):
+        # Setup
+        self.model_repo._get_metadata = lambda: {
+            "test_model": {
+                "1.0": "cid1",
+                "1.1": "cid2",
+                "1.2": "cid3"
+            }
+        }
+
+        # Test successful rollback
+        with patch.object(self.model_repo, '_store_manifest_cid') as mock_store:
+            result = self.model_repo.rollback_version("test_model", "1.1")
+            self.assertTrue(result)
+            mock_store.assert_called_once()
+
+            # Verify the structure of the updated metadata
+            updated_metadata = self.model_repo._get_metadata()
+            self.assertEqual(len(updated_metadata["test_model"]), 3)  # All versions are preserved
+            self.assertEqual(updated_metadata["test_model"]["1.1"], "cid2")  # CID is preserved
+
+        # Test rollback to current version (should fail)
+        result = self.model_repo.rollback_version("test_model", "1.2")
+        self.assertFalse(result)
+
+        # Test rollback to non-existent version (should fail)
+        result = self.model_repo.rollback_version("test_model", "0.9")
+        self.assertFalse(result)
+
+        # Test rollback for non-existent model (should fail)
+        result = self.model_repo.rollback_version("non_existent_model", "1.0")
+        self.assertFalse(result)
 
 if __name__ == '__main__':
     unittest.main()
