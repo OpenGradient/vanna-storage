@@ -26,14 +26,17 @@ def rate_limit(limit_seconds):
     return decorator
 
 
-
-
 class ModelRepository:
 
     def __init__(self):
         self.metadata_cid = None
         self.initialize_metadata()
 
+    def _get_metadata(self) -> Dict[str, Dict[str, str]]:
+        with ipfs_client() as client:
+            metadata_json = client.cat(self.metadata_cid)
+            return json.loads(metadata_json)
+        
     @rate_limit(0)  # Limit to once every 5 minutes (set back to 300)
     def initialize_metadata(self, force=False):
         """
@@ -177,44 +180,10 @@ class ModelRepository:
             >>> print(manifest_cid)
             'QmA1b2C3d4E5f6G7h8I9j0K1L2m3N4o5P6q7R8s9T0u1V2w3X4y5Z'
         """
-        if not self.metadata_cid:
-            raise ValueError("No metadata stored yet")
-
-        print(f"Retrieving metadata with CID: {self.metadata_cid}")
-        with ipfs_client() as client:
-            try:
-                metadata_json = client.cat(self.metadata_cid)
-                print(f"Raw metadata: {metadata_json}")
-                metadata = json.loads(metadata_json)
-                print(f"Retrieved metadata: {metadata}")
-                print(f"Metadata type: {type(metadata)}")
-                
-                if isinstance(metadata, str):
-                    print("Metadata is a string, attempting to parse as JSON")
-                    metadata = json.loads(metadata)
-                    print(f"Parsed metadata: {metadata}")
-                
-                if not isinstance(metadata, dict):
-                    print(f"Warning: Metadata is not a dictionary. Unable to process.")
-                    raise ValueError("Invalid metadata format")
-                
-                print(f"Metadata after type check: {metadata}")
-                
-                if model_id not in metadata:
-                    print(f"Model ID {model_id} not found in metadata")
-                    raise ValueError(f"No manifest found for model {model_id}")
-                
-                if version not in metadata[model_id]:
-                    print(f"Version {version} not found for model {model_id}")
-                    raise ValueError(f"No manifest found for model {model_id} version {version}")
-                
-                manifest_cid = metadata[model_id][version]
-                print(f"Found manifest CID: {manifest_cid}")
-                return manifest_cid
-                
-            except (json.JSONDecodeError, TypeError) as e:
-                print(f"Error parsing metadata: {str(e)}")
-                raise ValueError(f"Error parsing metadata: {str(e)}")
+        metadata = self._get_metadata()
+        if model_id in metadata and version in metadata[model_id]:
+            return metadata[model_id][version]
+        raise ValueError(f"No manifest found for model {model_id} version {version}")
             
     @staticmethod
     def extract_hash(result):
@@ -314,9 +283,6 @@ class ModelRepository:
             return manifest_cid
 
     def validate_version(self, model_id: str, new_version: str) -> bool:
-        """
-        Validates the new version against existing versions to ensure it follows the versioning scheme.
-        """
         existing_versions = self.list_versions(model_id)
         if not existing_versions:
             return True
@@ -326,18 +292,8 @@ class ModelRepository:
         """
         Lists all available versions for a given model_id.
         """
-        if not self.metadata_cid:
-            return []
-        
-        with ipfs_client() as client:
-            metadata_json = client.cat(self.metadata_cid)
-            metadata = json.loads(metadata_json)
-            
-            if model_id in metadata:
-                versions = list(metadata[model_id].keys())
-                versions.sort(key=lambda v: parse(v))
-                return versions
-            return []
+        metadata = self._get_metadata()
+        return list(metadata.get(model_id, {}).keys())
 
     def get_latest_version(self, model_id: str) -> str:
         """
