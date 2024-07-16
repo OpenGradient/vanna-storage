@@ -27,8 +27,17 @@ def rate_limit(limit_seconds):
 
 
 class ModelRepository:
+    """
+    Manages the storage and retrieval of machine learning models using IPFS.
+
+    This class provides functionality for uploading, downloading, and managing
+    different versions of models, along with associated metadata.
+    """
 
     def __init__(self):
+        """
+        Initializes the ModelRepository and sets up the metadata.
+        """
         self.metadata_cid = None
         self.initialize_metadata()
 
@@ -187,6 +196,20 @@ class ModelRepository:
             
     @staticmethod
     def extract_hash(result):
+        """
+        Extracts the hash value from various result formats returned by IPFS operations.
+
+        This method handles different result structures, including strings, dictionaries,
+        and objects with a 'get' method, to consistently return the hash value.
+
+        Args:
+            result: The result object from an IPFS operation, which can be a string,
+                    dictionary, or an object with a 'get' method.
+
+        Returns:
+            str: The extracted hash value, or a string representation of the result
+                if no hash could be extracted.
+        """
         if isinstance(result, str):
             return result
         elif isinstance(result, dict) and 'Hash' in result:
@@ -196,10 +219,19 @@ class ModelRepository:
         else:
             return str(result)
     
-    """
-    Manages storage and retrieval of model artifacts in IPFS.
-    """
     def upload_model(self, model_id: str, serialized_model: bytes, version: str, file_path: str = None) -> str:
+        """
+        Uploads a model and its associated files to IPFS.
+
+        Args:
+            model_id (str): Unique identifier for the model.
+            serialized_model (bytes): The serialized model data.
+            version (str): Version string for the model.
+            file_path (str, optional): Path to an additional file to upload.
+
+        Returns:
+            str: The CID of the uploaded model manifest.
+        """
         with ipfs_client() as client:
             model_hash = self.extract_hash(client.add_bytes(serialized_model))
             
@@ -222,6 +254,19 @@ class ModelRepository:
             return manifest_cid
 
     def download_model(self, model_id: str, version: str) -> bytes:
+        """
+        Downloads a specific version of a model from IPFS.
+
+        Args:
+            model_id (str): Unique identifier for the model.
+            version (str): Version of the model to download.
+
+        Returns:
+            bytes: The serialized model data.
+
+        Raises:
+            ValueError: If the specified model version is not found.
+        """
         with ipfs_client() as client:
             # Retrieve the manifest for the specified version
             manifest_cid = self.get_manifest_cid(model_id, version)
@@ -283,6 +328,16 @@ class ModelRepository:
             return manifest_cid
 
     def validate_version(self, model_id: str, new_version: str) -> bool:
+        """
+        Validates if a new version string is acceptable for a given model.
+
+        Args:
+            model_id (str): Unique identifier for the model.
+            new_version (str): The new version string to validate.
+
+        Returns:
+            bool: True if the version is valid, False otherwise.
+        """
         existing_versions = self.list_versions(model_id)
         if not existing_versions:
             return True
@@ -344,6 +399,16 @@ class ModelRepository:
         return versions[-1]  # Last version in the sorted list
     
     def rollback_version(self, model_id: str, version: str) -> bool:
+        """
+        Rolls back a model to a previous version while preserving all version history.
+
+        Args:
+            model_id (str): The ID of the model to rollback.
+            version (str): The version to rollback to.
+
+        Returns:
+            bool: True if rollback was successful, False otherwise.
+        """
         metadata = self._get_metadata()
         if model_id not in metadata or version not in metadata[model_id]:
             return False
