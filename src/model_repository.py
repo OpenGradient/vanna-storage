@@ -232,19 +232,14 @@ class ModelRepository:
     """
     def upload_model(self, model_id: str, serialized_model: bytes, version: str, file_path: str = None) -> str:
         with ipfs_client() as client:
-            print("Adding serialized model")
             model_hash = self.extract_hash(client.add_bytes(serialized_model))
-            print(f"Model hash: {model_hash}")
-
+            
             files = {}
             if file_path:
-                print(f"Trying client.add({file_path})")
                 file_result = client.add(file_path)
                 file_hash = self.extract_hash(file_result)
                 files[os.path.basename(file_path)] = file_hash
-                print(f"File hash: {file_hash}")
 
-            print("Creating manifest JSON")
             manifest = {
                 "model_id": model_id,
                 "version": version,
@@ -252,13 +247,8 @@ class ModelRepository:
                 "model_hash": model_hash
             }
             manifest_json = json.dumps(manifest)
-            print(f"Manifest JSON: {manifest_json}")
-
-            print("Adding manifest to IPFS")
             manifest_cid = self.extract_hash(client.add_json(manifest))
             self._store_manifest_cid(model_id, version, manifest_cid)
-
-            print(f"Uploaded model {model_id} version {version} with manifest CID: {manifest_cid}")
 
             return manifest_cid
 
@@ -329,23 +319,24 @@ class ModelRepository:
         """
         existing_versions = self.list_versions(model_id)
         if not existing_versions:
-            return True  # No versions exist, so the new version is valid by default
-
-        # Check if the new version is greater than all existing versions
+            return True
         return all(parse(new_version) > parse(v) for v in existing_versions)
 
     def list_versions(self, model_id: str) -> List[str]:
         """
         Lists all available versions for a given model_id.
         """
-        # Assuming MODEL_FOLDER is defined and points to the location where models are stored
-        model_path = os.path.join(MODEL_FOLDER, model_id)
-        try:
-            versions = [d for d in os.listdir(model_path) if os.path.isdir(os.path.join(model_path, d))]
-            versions.sort(key=lambda v: parse(v))
-            return versions
-        except FileNotFoundError:
-            print(f"No versions found for model_id {model_id}")
+        if not self.metadata_cid:
+            return []
+        
+        with ipfs_client() as client:
+            metadata_json = client.cat(self.metadata_cid)
+            metadata = json.loads(metadata_json)
+            
+            if model_id in metadata:
+                versions = list(metadata[model_id].keys())
+                versions.sort(key=lambda v: parse(v))
+                return versions
             return []
 
     def get_latest_version(self, model_id: str) -> str:
@@ -363,9 +354,7 @@ class ModelRepository:
         """
         existing_versions = self.list_versions(model_id)
         if not existing_versions:
-            return True  # No versions exist, so the new version is valid by default
-
-        # Check if the new version is greater than all existing versions
+            return True
         return all(parse(new_version) > parse(v) for v in existing_versions)
 
     def list_versions(self, model_id: str) -> List[str]:
@@ -373,14 +362,21 @@ class ModelRepository:
         Lists all available versions for a given model_id.
         """
         # Assuming MODEL_FOLDER is defined and points to the location where models are stored
-        model_path = os.path.join(MODEL_FOLDER, model_id)
-        try:
-            versions = [d for d in os.listdir(model_path) if os.path.isdir(os.path.join(model_path, d))]
-            versions.sort(key=lambda v: parse(v))
-            return versions
-        except FileNotFoundError:
-            print(f"No versions found for model_id {model_id}")
+        if not self.metadata_cid:
             return []
+        
+        with ipfs_client() as client:
+            metadata_json = client.cat(self.metadata_cid)
+            metadata = json.loads(metadata_json)
+            
+            if isinstance(metadata, str):
+                metadata = json.loads(metadata)
+            
+            if model_id in metadata:
+                versions = list(metadata[model_id].keys())
+                versions.sort(key=lambda v: parse(v))
+                return versions
+        return []
 
     def get_latest_version(self, model_id: str) -> str:
         """
