@@ -3,10 +3,66 @@ from utils import validate_file
 import logging
 import os
 from config import MODEL_FOLDER
-from model_repository import ModelRepository  # Assuming this is the class handling IPFS operations
+from model_repository import ModelRepository
 
 bp = Blueprint('routes', __name__)
 model_repo = ModelRepository()
+
+@bp.route('/upload_model', methods=['POST'])
+def upload_model():
+    file = request.files.get('file')
+    model_id = request.form.get('model_id')
+    version = request.form.get('version')
+    if not file or not model_id or not version:
+        return Response('Missing file, model_id, or version', status=400)
+
+    validation_response = validate_file(file)
+    if validation_response:
+        return validation_response
+
+    try:
+        serialized_model = file.read()
+        manifest_cid = model_repo.upload_model(model_id, serialized_model, version)
+        logging.info(f"Uploaded model {model_id} version {version} to IPFS: {manifest_cid}")
+        return jsonify({'manifest_cid': manifest_cid})
+    except Exception as e:
+        logging.error(f"Failed to upload model: {e}")
+        return Response("Failed to upload model", status=500)
+
+@bp.route('/add_model', methods=['POST'])
+def add_model():
+    file = request.files.get('file')
+    model_id = request.form.get('model_id')
+    new_version = request.form.get('new_version')
+    if not file or not model_id or not new_version:
+        return Response('Missing file, model_id, or new_version', status=400)
+
+    validation_response = validate_file(file)
+    if validation_response:
+        return validation_response
+
+    try:
+        serialized_model = file.read()
+        manifest_cid = model_repo.add_model(model_id, serialized_model, new_version)
+        logging.info(f"Added new version {new_version} of model {model_id} to IPFS: {manifest_cid}")
+        return jsonify({'manifest_cid': manifest_cid})
+    except Exception as e:
+        logging.error(f"Failed to add new model version: {e}")
+        return Response("Failed to add new model version", status=500)
+
+@bp.route('/download_model', methods=['GET'])
+def download_model():
+    model_id = request.args.get('model_id')
+    version = request.args.get('version')
+    if not model_id or not version:
+        return Response('Missing model_id or version', status=400)
+
+    try:
+        model_data = model_repo.download_model(model_id, version)
+        return Response(model_data, mimetype='application/octet-stream')
+    except Exception as e:
+        logging.error(f"Failed to download model: {e}")
+        return Response("Failed to download model", status=500)
 
 @bp.route('/validate_version', methods=['POST'])
 def validate_version():
@@ -34,41 +90,12 @@ def get_latest_version(model_id):
     except ValueError as e:
         return jsonify({'error': str(e)}), 404
 
-@bp.route('/upload', methods=['POST'])
-def upload():
-    file = request.files.get('file')
-    if not file:
-        return Response('No file part', status=400)
-
-    validation_response = validate_file(file)
-    if validation_response:
-        return validation_response
-
-    try:
-        file_cid = model_repo.upload(file)
-        logging.info(f"Uploaded model to IPFS: {file_cid}")
-        return file_cid
-    except Exception as e:
-        logging.error(f"Failed to upload model: {e}")
-        return Response("Failed to upload file", status=500)
-
-@bp.route('/download', methods=['GET'])
-def download():
-    file_cid = request.args.get('cid')
-
-    if not file_cid:
-        return Response('Empty CID', 400)
-
-    # Prevent directory traversal attack
-    if os.path.basename(file_cid) != file_cid:
-        return Response('Invalid CID', 400)
-
-    try:
-        file_path = model_repo.download(file_cid, MODEL_FOLDER)
-        if file_path:
-            return send_from_directory(MODEL_FOLDER, os.path.basename(file_path), as_attachment=True)
-        else:
-            return Response("File not found", status=404)
-    except Exception as e:
-        logging.error(f"Failed to download model: {e}")
-        return Response("Failed to download file", status=500)
+@bp.route('/rollback_version', methods=['POST'])
+def rollback_version():
+    data = request.json
+    model_id = data.get('model_id')
+    version = data.get('version')
+    if not model_id or not version:
+        return jsonify({'error': 'Missing model_id or version'}), 400
+    success = model_repo.rollback_version(model_id, version)
+    return jsonify({'success': success})
