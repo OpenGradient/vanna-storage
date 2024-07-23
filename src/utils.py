@@ -1,7 +1,7 @@
 import os
 import uuid
 from flask import Response
-from config import MODEL_FOLDER, ONE_GB_IN_BYTES
+from model_config import MODEL_FOLDER, ONE_GB_IN_BYTES
 
 def save_temp_file(file):
     temp_file_name = str(uuid.uuid4())

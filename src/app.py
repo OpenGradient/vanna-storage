@@ -1,6 +1,5 @@
 from flask import Flask, request, send_from_directory, Response
 import logging
-from ipfs_client import ipfs_client
 from routes import bp
 
 app = Flask(__name__)

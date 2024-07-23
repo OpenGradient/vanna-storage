@@ -1,12 +1,14 @@
-from flask import Blueprint, request, Response, send_from_directory, jsonify
+from flask import Blueprint, request, Response, jsonify
 from utils import validate_file
 import logging
-import os
-from config import MODEL_FOLDER
 from model_repository import ModelRepository
 
 bp = Blueprint('routes', __name__)
 model_repo = ModelRepository()
+
+@bp.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'ok'}), 200
 
 @bp.route('/upload_model', methods=['POST'])
 def upload_model():
@@ -15,27 +17,30 @@ def upload_model():
         model_id = request.form.get('model_id')
         version = request.form.get('version')
         
+        print(f"Received request: model_id={model_id}, version={version}")
+        
         if not file or not model_id or not version:
             return jsonify({'error': 'Missing file, model_id, or version'}), 400
+        
+        print(f"File received: {file.filename}")
         
         validation_response = validate_file(file)
         if validation_response:
             return validation_response
         
         serialized_model = file.read()
+        print(f"Model serialized, size: {len(serialized_model)} bytes")
+        
         manifest_cid = model_repo.upload_model(model_id, serialized_model, version)
-        logging.info(f"Uploaded model {model_id} version {version} to IPFS: {manifest_cid}")
+        print(f"Model uploaded successfully. Manifest CID: {manifest_cid}")
+        
         return jsonify({'manifest_cid': manifest_cid})
     
-    except ValueError as e:
-        logging.error(f"Value error in upload_model: {str(e)}")
-        return jsonify({'error': str(e)}), 400
-    except IOError as e:
-        logging.error(f"IO error in upload_model: {str(e)}")
-        return jsonify({'error': 'File read error'}), 500
     except Exception as e:
-        logging.error(f"Unexpected error in upload_model: {str(e)}")
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+        print(f"Error in upload_model: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/add_model', methods=['POST'])
 def add_model():
@@ -43,6 +48,8 @@ def add_model():
         file = request.files.get('file')
         model_id = request.form.get('model_id')
         new_version = request.form.get('new_version')
+        
+        logging.info(f"Received request: model_id={model_id}, new_version={new_version}")
         
         if not file or not model_id or not new_version:
             return jsonify({'error': 'Missing file, model_id, or new_version'}), 400
@@ -52,6 +59,8 @@ def add_model():
             return validation_response
         
         serialized_model = file.read()
+        logging.info(f"Model serialized, size: {len(serialized_model)} bytes")
+        
         manifest_cid = model_repo.add_model(model_id, serialized_model, new_version)
         logging.info(f"Added new version {new_version} of model {model_id} to IPFS: {manifest_cid}")
         return jsonify({'manifest_cid': manifest_cid})
@@ -63,7 +72,7 @@ def add_model():
         logging.error(f"IO error in add_model: {str(e)}")
         return jsonify({'error': 'File read error'}), 500
     except Exception as e:
-        logging.error(f"Unexpected error in add_model: {str(e)}")
+        logging.error(f"Unexpected error in add_model: {str(e)}", exc_info=True)
         return jsonify({'error': 'An unexpected error occurred'}), 500
 
 @bp.route('/download_model', methods=['GET'])

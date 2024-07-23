@@ -1,5 +1,4 @@
 # initialize_repo.py
-import os
 from src.model_repository import ModelRepository
 from src.config import ENV
 
