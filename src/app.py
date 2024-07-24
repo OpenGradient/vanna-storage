@@ -1,6 +1,6 @@
 from flask import Flask, request, send_from_directory, Response
 import logging
-from routes import bp
+from api.routes import bp
 
 app = Flask(__name__)
 app.register_blueprint(bp)

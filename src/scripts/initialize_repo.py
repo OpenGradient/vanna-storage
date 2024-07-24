@@ -1,6 +1,6 @@
 # initialize_repo.py
-from src.model_repository import ModelRepository
-from src.config import ENV
+from core.model_repository import ModelRepository
+from config import ENV
 
 if __name__ == "__main__":
     if ENV == 'production':

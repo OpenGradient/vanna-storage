@@ -1,10 +1,10 @@
 from flask import Blueprint, request, Response, jsonify
-from utils import validate_file
+from api.validators import validate_file
 import logging
-from model_repository import ModelRepository
+from core.model_repository import ModelRepository
 
 bp = Blueprint('routes', __name__)
-model_repo = ModelRepository()
+model_repo = ModelRepository.get_instance()
 
 @bp.route('/health', methods=['GET'])
 def health_check():
