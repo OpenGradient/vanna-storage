@@ -15,31 +15,52 @@ def initialize_metadata(self):
 
 def _get_metadata(self):
     client = IPFSClient()
+    logging.debug(f"Current metadata CID: {self.metadata_cid}")
     if not self.metadata_cid:
+        logging.warning("No metadata CID found, returning default metadata")
         return {"models": {}, "version": "1.0"}
-    metadata_json = client.cat(self.metadata_cid)
     try:
+        metadata_json = client.cat(self.metadata_cid)
+        logging.debug(f"Raw metadata from IPFS: {metadata_json}")
+        
         if isinstance(metadata_json, bytes):
             metadata_json = metadata_json.decode('utf-8')
-        metadata = json.loads(metadata_json) if isinstance(metadata_json, str) else metadata_json
+        logging.debug(f"Decoded metadata: {metadata_json}")
+        
+        metadata = json.loads(metadata_json)
+        logging.debug(f"Parsed metadata: {metadata}")
+        
         if not isinstance(metadata, dict):
-            raise TypeError(f"Decoded metadata is not a dict: {metadata}")
+            logging.error(f"Parsed metadata is not a dict: {metadata}")
+            return {"models": {}, "version": "1.0"}
+        
         return metadata
-    except (json.JSONDecodeError, TypeError) as e:
-        logging.error(f"Failed to decode metadata JSON: {metadata_json}. Error: {str(e)}")
+    except Exception as e:
+        logging.error(f"Error retrieving metadata: {str(e)}", exc_info=True)
         return {"models": {}, "version": "1.0"}
-
+    
 def _store_metadata(self, metadata):
     client = IPFSClient()
-    metadata_json = json.dumps(metadata)
-    result = client.add_json(metadata_json)
-    self.metadata_cid = self.extract_hash(result)
+    try:
+        metadata_json = json.dumps(metadata)
+        logging.debug(f"Storing metadata: {metadata_json}")
+        result = client.add_json(metadata)  # Changed from metadata_json to metadata
+        logging.debug(f"IPFS add_json result: {result}")
+        if isinstance(result, dict) and 'Hash' in result:
+            self.metadata_cid = result['Hash']
+        else:
+            raise ValueError(f"Unexpected result from IPFS add_json: {result}")
+        logging.info(f"Stored metadata with CID: {self.metadata_cid}")
+        return self.metadata_cid
+    except Exception as e:
+        logging.error(f"Error storing metadata: {str(e)}", exc_info=True)
+        raise
 
 def get_manifest_cid(self, model_id: str, version: str) -> str:
     metadata = self._get_metadata()
-    if 'models' in metadata and model_id in metadata['models'] and version in metadata['models'][model_id]:
+    if model_id in metadata.get('models', {}) and version in metadata['models'][model_id]:
         return metadata['models'][model_id][version]
-    raise ValueError(f"No manifest found for model {model_id} version {version}")
+    return None
 
 ModelRepository.initialize_metadata = initialize_metadata
 ModelRepository._get_metadata = _get_metadata

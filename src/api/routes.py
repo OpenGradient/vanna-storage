@@ -2,6 +2,7 @@ from flask import Blueprint, request, Response, jsonify
 from api.validators import validate_file
 import logging
 from core.model_repository import ModelRepository
+import traceback
 
 bp = Blueprint('routes', __name__)
 model_repo = ModelRepository.get_instance()
@@ -42,39 +43,6 @@ def upload_model():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/add_model', methods=['POST'])
-def add_model():
-    try:
-        file = request.files.get('file')
-        model_id = request.form.get('model_id')
-        new_version = request.form.get('new_version')
-        
-        logging.info(f"Received request: model_id={model_id}, new_version={new_version}")
-        
-        if not file or not model_id or not new_version:
-            return jsonify({'error': 'Missing file, model_id, or new_version'}), 400
-        
-        validation_response = validate_file(file)
-        if validation_response:
-            return validation_response
-        
-        serialized_model = file.read()
-        logging.info(f"Model serialized, size: {len(serialized_model)} bytes")
-        
-        manifest_cid = model_repo.add_model(model_id, serialized_model, new_version)
-        logging.info(f"Added new version {new_version} of model {model_id} to IPFS: {manifest_cid}")
-        return jsonify({'manifest_cid': manifest_cid})
-    
-    except ValueError as e:
-        logging.error(f"Value error in add_model: {str(e)}")
-        return jsonify({'error': str(e)}), 400
-    except IOError as e:
-        logging.error(f"IO error in add_model: {str(e)}")
-        return jsonify({'error': 'File read error'}), 500
-    except Exception as e:
-        logging.error(f"Unexpected error in add_model: {str(e)}", exc_info=True)
-        return jsonify({'error': 'An unexpected error occurred'}), 500
-
 @bp.route('/download_model', methods=['GET'])
 def download_model():
     try:
@@ -97,6 +65,16 @@ def download_model():
         logging.error(f"Unexpected error in download_model: {str(e)}")
         return jsonify({'error': 'An unexpected error occurred'}), 500
 
+@bp.route('/get_metadata', methods=['GET'])
+def get_metadata():
+    try:
+        metadata = model_repo._get_metadata()
+        logging.debug(f"Retrieved metadata in get_metadata route: {metadata}")
+        return jsonify(metadata)
+    except Exception as e:
+        logging.error(f"Error in get_metadata route: {str(e)}", exc_info=True)
+        return jsonify({"error": "An unexpected error occurred"}), 500
+    
 @bp.route('/validate_version', methods=['POST'])
 def validate_version():
     try:
@@ -117,21 +95,48 @@ def validate_version():
         logging.error(f"Unexpected error in validate_version: {str(e)}")
         return jsonify({'error': 'An unexpected error occurred'}), 500
 
-@bp.route('/list_versions/<model_id>', methods=['GET'])
-def list_versions(model_id):
-    try:
-        versions = model_repo.list_versions(model_id)
-        if versions:
-            return jsonify({'versions': versions})
-        else:
-            return jsonify({'error': f'No versions found for model_id {model_id}'}), 404
+@bp.route('/list_versions', methods=['GET'])
+def list_versions():
+    model_id = request.args.get('model_id')
+    logging.debug(f"Received request to list versions for model_id: {model_id}")
     
-    except ValueError as e:
-        logging.error(f"Value error in list_versions: {str(e)}")
-        return jsonify({'error': str(e)}), 400
+    if not model_id:
+        logging.error("No model_id provided in request")
+        return jsonify({"error": "model_id is required"}), 400
+    
+    try:
+        model_repo = ModelRepository.get_instance()
+        metadata = model_repo._get_metadata()
+        logging.debug(f"Retrieved metadata: {metadata}")
+        
+        if model_id not in metadata.get('models', {}):
+            logging.error(f"Model {model_id} not found in metadata")
+            return jsonify({"error": f"Model {model_id} not found"}), 404
+        
+        versions = list(metadata['models'][model_id].keys())
+        logging.debug(f"Versions found for model {model_id}: {versions}")
+        return jsonify(versions)
     except Exception as e:
-        logging.error(f"Unexpected error in list_versions: {str(e)}")
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+        logging.error(f"Error in list_versions: {str(e)}", exc_info=True)
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+@bp.route('/list_content', methods=['GET'])
+def list_content():
+    model_id = request.args.get('model_id')
+    version = request.args.get('version')
+    if not model_id or not version:
+        return jsonify({"error": "model_id and version are required"}), 400
+    
+    try:
+        content = model_repo.get_model_content(model_id, version)
+        return jsonify(content)
+    except ValueError as e:
+        logging.error(f"ValueError in list_content: {str(e)}")
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        logging.error(f"Unexpected error in list_content: {str(e)}")
+        logging.error(traceback.format_exc())
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 @bp.route('/get_latest_version/<model_id>', methods=['GET'])
 def get_latest_version(model_id):
