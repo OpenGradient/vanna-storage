@@ -13,8 +13,6 @@ class ModelRepository:
         return cls._instance
 
     def __init__(self):
-        if self._instance is not None:
-            raise ValueError("An instantiation already exists!")
         self._instance = self
         self.metadata_cid = None
         self.initialize_metadata()

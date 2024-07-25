@@ -1,5 +1,6 @@
 from .base import ModelRepository
 from core.ipfs_client import IPFSClient
+import logging
 
 def download_model(self, model_id: str, version: str) -> bytes:
     client = IPFSClient()
@@ -8,7 +9,8 @@ def download_model(self, model_id: str, version: str) -> bytes:
         raise ValueError(f"No manifest found for model {model_id} version {version}")
     
     manifest = client.get_json(manifest_cid)
-    model_hash = manifest['model_hash']
+    logging.debug(f"Retrieved manifest: {manifest}") 
+    model_hash = manifest['model_cid']
     model_data = client.cat(model_hash)
     return model_data
 

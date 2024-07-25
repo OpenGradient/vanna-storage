@@ -5,6 +5,11 @@ import logging
 app = Flask(__name__)
 app.register_blueprint(bp)
 
+def create_app():
+    app = Flask(__name__)
+    app.register_blueprint(bp)
+    return app
+
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.DEBUG,

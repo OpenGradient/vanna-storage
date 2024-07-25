@@ -28,6 +28,10 @@ docker compose build --no-cache server && docker compose up -d server && docker 
 ```
 docker compose down && docker compose build --no-cache server && docker compose up -d && docker compose logs -f server
 ```
+- When running test_model_repository from local, be sure to run 
+```
+   export IPFS_HOST=localhost
+```
 
 ## Test Commands
 To test the ModelRepository functionality, you can use the following curl commands:
