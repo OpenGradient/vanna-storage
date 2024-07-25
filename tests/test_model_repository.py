@@ -69,8 +69,8 @@ class TestModelRepository(TestCase):
     def test_download_model_missing_data(self):
         response = self.client.get('/download_model')
         self.assertEqual(response.status_code, 400)
-        self.assertIn('Missing model_id or version', json.loads(response.data)['error'])
-    
+        self.assertIn('model_id and version are required', json.loads(response.data)['error'])
+        
     def test_get_latest_version(self):
         with self.app.app_context():
             # First, upload the model to ensure it exists in the metadata
