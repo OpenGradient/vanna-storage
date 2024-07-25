@@ -3,20 +3,14 @@ from .base import ModelRepository
 from core.ipfs_client import IPFSClient
 import logging
 
-def initialize_metadata(self):
-    client = IPFSClient()
-    initial_metadata = {"models": {}, "version": "1.0"}
-    self.metadata_cid = self._store_metadata(initial_metadata)
-    logging.info(f"Initialized new metadata with CID: {self.metadata_cid}")
-    return initial_metadata
-
 def _get_metadata(self):
     client = IPFSClient()
     try:
         if not self.metadata_cid:
-            logging.warning("No metadata CID found. Initializing new metadata.")
-            return self.initialize_metadata()
+            logging.error("No metadata CID found. Metadata should be initialized before use.")
+            raise ValueError("Metadata not initialized")
 
+        logging.debug(f"Retrieving metadata with CID: {self.metadata_cid}")
         metadata_json = client.cat(self.metadata_cid)
         if isinstance(metadata_json, bytes):
             metadata_json = metadata_json.decode('utf-8')
@@ -25,8 +19,7 @@ def _get_metadata(self):
         return metadata
     except Exception as e:
         logging.error(f"Error retrieving metadata: {str(e)}", exc_info=True)
-        # Optionally, reinitialize metadata if retrieval fails
-        return self.initialize_metadata()
+        raise
 
 def _store_metadata(self, metadata):
     client = IPFSClient()
@@ -50,7 +43,12 @@ def _store_metadata(self, metadata):
 
 def get_manifest_cid(self, model_id: str, version: str) -> str:
     metadata = self._get_metadata()
-    return metadata.get('models', {}).get(model_id, {}).get(version)
+    logging.debug(f"Metadata retrieved in get_manifest_cid: {metadata}")
+    manifest_cid = metadata.get('models', {}).get(model_id, {}).get(version)
+    logging.debug(f"Manifest CID for {model_id} v{version}: {manifest_cid}")
+    if not manifest_cid:
+        logging.warning(f"No manifest CID found for {model_id} v{version}")
+    return manifest_cid
 
 def add_model_version(self, model_id: str, version: str, manifest_cid: str):
     metadata = self._get_metadata()
@@ -63,7 +61,6 @@ def list_versions(self, model_id: str) -> list:
     metadata = self._get_metadata()
     return list(metadata.get('models', {}).get(model_id, {}).keys())
 
-ModelRepository.initialize_metadata = initialize_metadata
 ModelRepository._get_metadata = _get_metadata
 ModelRepository._store_metadata = _store_metadata
 ModelRepository.get_manifest_cid = get_manifest_cid

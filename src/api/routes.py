@@ -1,3 +1,5 @@
+import io
+from os import sendfile
 from flask import Blueprint, request, Response, jsonify
 from api.validators import validate_file
 import logging
@@ -52,27 +54,33 @@ def upload_model():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+import traceback
+
+from flask import Response
+
 @bp.route('/download_model', methods=['GET'])
 def download_model():
-    try:
-        model_id = request.args.get('model_id')
-        version = request.args.get('version')
-        
-        if not model_id or not version:
-            return jsonify({'error': 'Missing model_id or version'}), 400
-        
-        model_data = model_repo.download_model(model_id, version)
-        return Response(model_data, mimetype='application/octet-stream')
+    model_id = request.args.get('model_id')
+    version = request.args.get('version')
+    if not model_id or not version:
+        return jsonify({"error": "model_id and version are required"}), 400
     
+    try:
+        model_data = model_repo.download_model(model_id, version)
+        return Response(
+            model_data,
+            mimetype='application/octet-stream',
+            headers={
+                "Content-Disposition": f"attachment; filename={model_id}_v{version}.onnx"
+            }
+        )
     except ValueError as e:
-        logging.error(f"Value error in download_model: {str(e)}")
-        return jsonify({'error': str(e)}), 400
-    except FileNotFoundError as e:
-        logging.error(f"File not found in download_model: {str(e)}")
-        return jsonify({'error': 'Model not found'}), 404
+        logging.error(f"ValueError in download_model: {str(e)}")
+        return jsonify({"error": str(e)}), 404
     except Exception as e:
         logging.error(f"Unexpected error in download_model: {str(e)}")
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+        logging.error(traceback.format_exc())
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
 
 @bp.route('/get_metadata', methods=['GET'])
 def get_metadata():

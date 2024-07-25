@@ -57,7 +57,7 @@ To test the ModelRepository functionality, you can use the following curl comman
 1. Upload a new model:  
 ```
 curl -X POST \
--F "file=@test/mock_onnx/test_model.onnx" \
+-F "file=@tests/mock_onnx/test_model.onnx" \
 -F "model_id=test_onnx_model" \
 -F "version=1.0" \
 http://localhost:5002/upload_model
@@ -66,10 +66,10 @@ http://localhost:5002/upload_model
 2. Add a new version of an existing model:  
 ```
 curl -X POST \
--F "file=@test/mock_onnx/test_model.onnx" \
+-F "file=@tests/mock_onnx/test_model.onnx" \
 -F "model_id=test_onnx_model" \
--F "new_version=1.1" \
-http://localhost:5002/add_model
+-F "version=1.1" \
+http://localhost:5002/upload_model
 ```
 
 3. Download a specific version of a model:

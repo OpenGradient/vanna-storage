@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 models/
+downloaded_model
 
 # C extensions
 *.so
