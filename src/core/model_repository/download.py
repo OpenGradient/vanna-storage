@@ -1,34 +1,43 @@
-from .base import ModelRepository
-from core.ipfs_client import IPFSClient
 import logging
 import traceback
+from .base import ModelRepository
+from core.ipfs_client import IPFSClient
 
 def download_model(self, model_id: str, version: str) -> bytes:
     client = IPFSClient()
     try:
-        logging.debug(f"Attempting to download model: {model_id}, version: {version}")
-        manifest_cid = self.get_manifest_cid(model_id, version)
-        logging.debug(f"Manifest CID for {model_id} v{version}: {manifest_cid}")
-        if not manifest_cid:
+        logging.info(f"Starting download for model: {model_id}, version: {version}")
+        
+        # Get metadata
+        metadata = self._get_metadata()
+        logging.info(f"Retrieved metadata: {metadata}")
+        
+        if 'models' not in metadata or model_id not in metadata['models'] or version not in metadata['models'][model_id]:
             raise ValueError(f"No manifest found for model {model_id} version {version}")
         
-        manifest = client.get_json(manifest_cid)
-        logging.debug(f"Retrieved manifest: {manifest}") 
+        manifest_cid = metadata['models'][model_id][version]
+        logging.info(f"Manifest CID for {model_id} v{version}: {manifest_cid}")
         
-        if 'model_cid' not in manifest:
-            logging.error(f"Manifest does not contain 'model_cid'. Manifest keys: {manifest.keys()}")
+        manifest = client.get_json(manifest_cid)
+        if not manifest:
+            raise ValueError(f"Failed to retrieve manifest for {model_id} v{version}")
+        logging.info(f"Retrieved manifest: {manifest}") 
+        
+        if not isinstance(manifest, dict) or 'model_cid' not in manifest:
             raise ValueError(f"Invalid manifest structure for {model_id} v{version}")
         
         model_cid = manifest['model_cid']
-        logging.debug(f"Model CID from manifest: {model_cid}")
+        logging.info(f"Model CID from manifest: {model_cid}")
         
-        logging.debug(f"Attempting to retrieve model data with CID: {model_cid}")
+        logging.info(f"Attempting to retrieve model data with CID: {model_cid}")
         model_data = client.cat(model_cid)
-        logging.debug(f"Retrieved model data, size: {len(model_data)} bytes")
+        if not model_data:
+            raise ValueError(f"Failed to retrieve model data for {model_id} v{version}")
+        logging.info(f"Retrieved model data, size: {len(model_data)} bytes")
+        
         return model_data
     except Exception as e:
         logging.error(f"Error in download_model: {str(e)}")
-        logging.error(f"Manifest content: {manifest}")
         logging.error(traceback.format_exc())
         raise
 

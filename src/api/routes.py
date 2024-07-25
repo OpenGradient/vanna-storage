@@ -45,18 +45,17 @@ def upload_model():
             metadata['models'][model_id] = {}
         metadata['models'][model_id][version] = manifest_cid
         model_repo._store_metadata(metadata)
+
+        # Verify metadata update
+        updated_metadata = model_repo._get_metadata()
+        logging.debug(f"Updated metadata: {updated_metadata}")
         
         return jsonify({'manifest_cid': manifest_cid})
     
     except Exception as e:
         print(f"Error in upload_model: {str(e)}")
-        import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
-import traceback
-
-from flask import Response
 
 @bp.route('/download_model', methods=['GET'])
 def download_model():
@@ -66,7 +65,10 @@ def download_model():
         return jsonify({"error": "model_id and version are required"}), 400
     
     try:
+        logging.info(f"Download request received for model: {model_id}, version: {version}")
         model_data = model_repo.download_model(model_id, version)
+        logging.info(f"Downloaded model data size: {len(model_data)} bytes")
+        
         return Response(
             model_data,
             mimetype='application/octet-stream',
@@ -81,7 +83,7 @@ def download_model():
         logging.error(f"Unexpected error in download_model: {str(e)}")
         logging.error(traceback.format_exc())
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
-
+    
 @bp.route('/get_metadata', methods=['GET'])
 def get_metadata():
     try:
