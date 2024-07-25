@@ -5,64 +5,67 @@ import logging
 
 def initialize_metadata(self):
     client = IPFSClient()
-    if not self.metadata_cid:
-        initial_metadata = {"models": {}, "version": "1.0"}
-        result = client.add_json(json.dumps(initial_metadata))
-        self.metadata_cid = self.extract_hash(result)
-        logging.info(f"Initialized new metadata with CID: {self.metadata_cid}")
-    else:
-        logging.info(f"Using existing metadata with CID: {self.metadata_cid}")
+    initial_metadata = {"models": {}, "version": "1.0"}
+    self.metadata_cid = self._store_metadata(initial_metadata)
+    logging.info(f"Initialized new metadata with CID: {self.metadata_cid}")
+    return initial_metadata
 
 def _get_metadata(self):
     client = IPFSClient()
-    logging.debug(f"Current metadata CID: {self.metadata_cid}")
-    if not self.metadata_cid:
-        logging.warning("No metadata CID found, returning default metadata")
-        return {"models": {}, "version": "1.0"}
     try:
+        if not self.metadata_cid:
+            logging.warning("No metadata CID found. Initializing new metadata.")
+            return self.initialize_metadata()
+
         metadata_json = client.cat(self.metadata_cid)
-        logging.debug(f"Raw metadata from IPFS: {metadata_json}")
-        
         if isinstance(metadata_json, bytes):
             metadata_json = metadata_json.decode('utf-8')
-        logging.debug(f"Decoded metadata: {metadata_json}")
-        
         metadata = json.loads(metadata_json)
-        logging.debug(f"Parsed metadata: {metadata}")
-        
-        if not isinstance(metadata, dict):
-            logging.error(f"Parsed metadata is not a dict: {metadata}")
-            return {"models": {}, "version": "1.0"}
-        
+        logging.debug(f"Retrieved metadata: {metadata}")
         return metadata
     except Exception as e:
         logging.error(f"Error retrieving metadata: {str(e)}", exc_info=True)
-        return {"models": {}, "version": "1.0"}
-    
+        # Optionally, reinitialize metadata if retrieval fails
+        return self.initialize_metadata()
+
 def _store_metadata(self, metadata):
     client = IPFSClient()
     try:
-        metadata_json = json.dumps(metadata)
-        logging.debug(f"Storing metadata: {metadata_json}")
-        result = client.add_json(metadata)  # Changed from metadata_json to metadata
-        logging.debug(f"IPFS add_json result: {result}")
+        logging.info(f"Storing metadata (before IPFS): {metadata}")
+        result = client.add_json(metadata)
+        logging.info(f"IPFS add_json result: {result}")
         if isinstance(result, dict) and 'Hash' in result:
-            self.metadata_cid = result['Hash']
+            new_cid = result['Hash']
+            self.metadata_cid = new_cid
+            logging.info(f"Stored metadata with new CID: {new_cid}")
+            # Verify stored data
+            stored_data = client.cat(new_cid)
+            logging.info(f"Verification - Retrieved data: {stored_data}")
+            return new_cid
         else:
             raise ValueError(f"Unexpected result from IPFS add_json: {result}")
-        logging.info(f"Stored metadata with CID: {self.metadata_cid}")
-        return self.metadata_cid
     except Exception as e:
         logging.error(f"Error storing metadata: {str(e)}", exc_info=True)
         raise
 
 def get_manifest_cid(self, model_id: str, version: str) -> str:
     metadata = self._get_metadata()
-    if model_id in metadata.get('models', {}) and version in metadata['models'][model_id]:
-        return metadata['models'][model_id][version]
-    return None
+    return metadata.get('models', {}).get(model_id, {}).get(version)
+
+def add_model_version(self, model_id: str, version: str, manifest_cid: str):
+    metadata = self._get_metadata()
+    if model_id not in metadata['models']:
+        metadata['models'][model_id] = {}
+    metadata['models'][model_id][version] = manifest_cid
+    self._store_metadata(metadata)
+
+def list_versions(self, model_id: str) -> list:
+    metadata = self._get_metadata()
+    return list(metadata.get('models', {}).get(model_id, {}).keys())
 
 ModelRepository.initialize_metadata = initialize_metadata
 ModelRepository._get_metadata = _get_metadata
 ModelRepository._store_metadata = _store_metadata
 ModelRepository.get_manifest_cid = get_manifest_cid
+ModelRepository.add_model_version = add_model_version
+ModelRepository.list_versions = list_versions

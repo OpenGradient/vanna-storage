@@ -1,6 +1,7 @@
 from typing import List
 from packaging.version import parse
 from .base import ModelRepository
+import logging
 
 def validate_version(self, model_id: str, new_version: str) -> bool:
     existing_versions = self.list_versions(model_id)
@@ -14,7 +15,8 @@ def list_versions(self, model_id: str) -> List[str]:
         versions = list(metadata['models'][model_id].keys())
         versions.sort(key=lambda v: parse(v))
         return versions
-    return []
+    logging.warning(f"No versions found for model_id: {model_id}")
+    raise ValueError(f"No versions found for model_id: {model_id}")
 
 def get_latest_version(self, model_id: str) -> str:
     versions = self.list_versions(model_id)

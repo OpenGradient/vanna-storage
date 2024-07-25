@@ -35,6 +35,15 @@ def upload_model():
         manifest_cid = model_repo.upload_model(model_id, serialized_model, version)
         print(f"Model uploaded successfully. Manifest CID: {manifest_cid}")
         
+        # Update metadata
+        metadata = model_repo._get_metadata()
+        if 'models' not in metadata:
+            metadata['models'] = {}
+        if model_id not in metadata['models']:
+            metadata['models'][model_id] = {}
+        metadata['models'][model_id][version] = manifest_cid
+        model_repo._store_metadata(metadata)
+        
         return jsonify({'manifest_cid': manifest_cid})
     
     except Exception as e:
@@ -105,17 +114,12 @@ def list_versions():
         return jsonify({"error": "model_id is required"}), 400
     
     try:
-        model_repo = ModelRepository.get_instance()
-        metadata = model_repo._get_metadata()
-        logging.debug(f"Retrieved metadata: {metadata}")
-        
-        if model_id not in metadata.get('models', {}):
-            logging.error(f"Model {model_id} not found in metadata")
-            return jsonify({"error": f"Model {model_id} not found"}), 404
-        
-        versions = list(metadata['models'][model_id].keys())
+        versions = model_repo.list_versions(model_id)
         logging.debug(f"Versions found for model {model_id}: {versions}")
         return jsonify(versions)
+    except ValueError as e:
+        logging.error(f"Error in list_versions: {str(e)}")
+        return jsonify({"error": str(e)}), 404
     except Exception as e:
         logging.error(f"Error in list_versions: {str(e)}", exc_info=True)
         return jsonify({"error": "An unexpected error occurred"}), 500
@@ -129,7 +133,16 @@ def list_content():
     
     try:
         content = model_repo.get_model_content(model_id, version)
-        return jsonify(content)
+        return jsonify({
+            "model_id": model_id,
+            "version": version,
+            "manifest": {
+                "model_cid": content['manifest']['model_cid']
+            },
+            "content": {
+                "model": content['content']['model']
+            }
+        })
     except ValueError as e:
         logging.error(f"ValueError in list_content: {str(e)}")
         return jsonify({"error": str(e)}), 404
