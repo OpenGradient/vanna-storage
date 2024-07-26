@@ -55,6 +55,7 @@ When adding new tests:
 To test the ModelRepository functionality, you can use the following curl commands:
 
 1. Upload a new model:  
+
 ```
 curl -X POST \
 -F "file=@tests/mock_onnx/test_model.onnx" \
@@ -79,32 +80,33 @@ curl -X GET \
 --output downloaded_model.onnx
 ```
 
-4. Validate a new version:
+4. Get all metadata:
+```
+curl -X GET http://localhost:5002/get_metadata
+```
+
+5. Get metadata for a specific model:
+```
+curl -X GET http://localhost:5002/get_metadata/test_onnx_model
+```
+
+6. Get model content:
+```
+curl -X GET "http://localhost:5002/get_model?model_id=test_onnx_model&version=1.0"
+```
+
+or
+
+```
+curl -X GET http://localhost:5002/get_model/test_onnx_model/1.0
+```
+
+7. Validate a new version:
 ```
 curl -X POST \
 -H "Content-Type: application/json" \
 -d '{"model_id": "test_onnx_model", "new_version": "1.2"}' \
 http://localhost:5002/validate_version
-```
-
-5. List versions of a model:
-```
-curl -X GET \
-http://localhost:5002/list_versions/test_onnx_model
-```
-
-6. Get the latest version of a model:
-```
-curl -X GET \
-http://localhost:5002/get_latest_version/test_onnx_model
-```
-
-7. Rollback to a previous version:
-```
-curl -X POST \
--H "Content-Type: application/json" \
--d '{"model_id": "test_onnx_model", "version": "1.0"}' \
-http://localhost:5002/rollback_version
 ```
 
 These commands cover the main functionalities of the ModelRepository. Make sure to run them in the order presented, as some commands depend on the results of previous ones.

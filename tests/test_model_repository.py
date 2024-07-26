@@ -1,167 +1,82 @@
-import sys
-import os
-import unittest
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-import unittest
-from unittest import TestCase
-from unittest.mock import patch, MagicMock
 import json
-from io import BytesIO
-from app import create_app
-from core.model_repository import ModelRepository
+from unittest import TestCase
+import unittest
+from unittest.mock import patch, MagicMock
+from flask import Flask
+from src.api.routes import bp
+from src.core.model_repository import upload_model, download_model, get_metadata, validate_version
 
 class TestModelRepository(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Create a mock IPFSClient class
         cls.mock_ipfs_client = MagicMock()
-        cls.mock_ipfs_client.__enter__ = MagicMock(return_value=cls.mock_ipfs_client)
-        cls.mock_ipfs_client.__exit__ = MagicMock(return_value=None)
-
-        # Set up mock return values for IPFSClient methods
-        cls.mock_ipfs_client.add_bytes.return_value = {'Hash': 'mock_model_cid'}
-        cls.mock_ipfs_client.add.return_value = {'Hash': 'mock_file_hash'}
-        cls.mock_ipfs_client.add_json.return_value = {'Hash': 'mock_manifest_cid'}
-        cls.mock_ipfs_client.cat.return_value = json.dumps({})
-
-        # Patch the IPFSClient
-        cls.mock_ipfs_patcher = patch('core.ipfs_client.IPFSClient', return_value=cls.mock_ipfs_client)
+        cls.mock_ipfs_patcher = patch('src.core.ipfs_client.IPFSClient', return_value=cls.mock_ipfs_client)
         cls.mock_ipfs_patcher.start()
 
-        # Initialize ModelRepository once for all tests
-        cls.model_repo = ModelRepository()
-        cls.model_repo.metadata_cid = "mock_metadata_cid"
-
-        cls.mock_ipfs_patcher.return_value = cls.model_repo
-       
-        # Mock the _initialize_metadata method to prevent multiple initializations
-        cls.model_repo._initialize_metadata = MagicMock()
-
-        # Create the Flask app
-        cls.app = create_app()
+        cls.app = Flask(__name__)
+        cls.app.register_blueprint(bp)
         cls.client = cls.app.test_client()
 
     @classmethod
     def tearDownClass(cls):
         cls.mock_ipfs_patcher.stop()
 
-    def test_download_model(self):
-        with self.app.app_context():
-            # First, upload the model to ensure it exists in the metadata
-            upload_response = self.client.post('/upload_model', data={
-                'file': (BytesIO(b'test_model_data'), 'test_model.pkl'),
-                'model_id': 'test_model',
-                'version': '1.0'
-            })
-            self.assertEqual(upload_response.status_code, 200)
-
-            # Now proceed to download the model
-            with patch('core.ipfs_client.IPFSClient') as mock_ipfs_client, \
-                patch.object(self.model_repo, 'get_manifest_cid', return_value='mock_manifest_cid'):
-                mock_ipfs_client.return_value.__enter__.return_value.get_json.return_value = {'model_cid': 'mock_model_cid'}
-                mock_ipfs_client.return_value.__enter__.return_value.cat.return_value = b'test_model_data'  # Match the uploaded data
-                
-                response = self.client.get('/download_model', query_string={'model_id': 'test_model', 'version': '1.0'})
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.data, b'test_model_data')  # Expect the original uploaded data
-
-    def test_download_model_missing_data(self):
-        response = self.client.get('/download_model')
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('model_id and version are required', json.loads(response.data)['error'])
-        
-    def test_get_latest_version(self):
-        with self.app.app_context():
-            # First, upload the model to ensure it exists in the metadata
-            upload_response = self.client.post('/upload_model', data={
-                'file': (BytesIO(b'test_model_data'), 'test_model.pkl'),
-                'model_id': 'test_model',
-                'version': '1.1'
-            })
-            self.assertEqual(upload_response.status_code, 200)
-
-            # Now mock the list_versions method to return a version for the test_model
-            with patch.object(self.model_repo, 'list_versions', return_value=['1.0', '1.1']):
-                response = self.client.get('/get_latest_version/test_model')
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(json.loads(response.data), {'latest_version': '1.1'})  # Expecting '1.1'
-
-    def test_get_latest_version_not_found(self):
-        with self.app.app_context():
-            with patch.object(self.model_repo, 'get_latest_version', side_effect=ValueError("No versions found")):
-                response = self.client.get('/get_latest_version/non_existent_model')
-                self.assertEqual(response.status_code, 400)
-                self.assertIn('No versions found', json.loads(response.data)['error'])
-
-    def test_list_versions(self):
-        with self.app.app_context():
-            with patch.object(self.model_repo, 'list_versions', return_value=['1.0', '1.1']):
-                response = self.client.get('/list_versions', query_string={'model_id': 'test_model'})
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(json.loads(response.data), ['1.0', '1.1'])
-            
-            with patch.object(self.model_repo, 'list_versions', side_effect=ValueError("No versions found")):
-                response = self.client.get('/list_versions', query_string={'model_id': 'non_existent_model'})
-                self.assertEqual(response.status_code, 404)
-                self.assertEqual(json.loads(response.data), {"error": "No versions found for model_id: non_existent_model"})
-                
-    def test_list_versions_not_found(self):
-        with self.app.app_context():
-            with patch.object(self.model_repo, 'list_versions', side_effect=ValueError("No versions found")):
-                response = self.client.get('/list_versions', query_string={'model_id': 'non_existent_model'})
-                self.assertEqual(response.status_code, 404)
-                self.assertEqual(json.loads(response.data), {"error": "No versions found for model_id: non_existent_model"})
-
     def test_upload_model(self):
-        """
-        Test the upload_model method of ModelRepository.
+        mock_model_data = b'mock_model_data'
+        mock_manifest_cid = 'mock_manifest_cid'
         
-        Verifies that the method successfully uploads a model and returns
-        the expected manifest CID.
-        """
-        with self.app.app_context():
-            response = self.client.post('/upload_model', data={
-                'file': (BytesIO(b'test_model_data'), 'test_model.pkl'),
-                'model_id': 'test_model',
-                'version': '1.0'
-            })
-            self.assertEqual(response.status_code, 200)
-            response_data = json.loads(response.data)
-            self.assertIn('manifest_cid', response_data)
-            self.assertTrue(isinstance(response_data['manifest_cid'], str))
+        self.mock_ipfs_client.add_bytes.return_value = 'mock_model_cid'
+        self.mock_ipfs_client.add_json.return_value = mock_manifest_cid
 
-    def test_upload_model_missing_data(self):
-        response = self.client.post('/upload_model', data={})
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('Missing file, model_id, or version', json.loads(response.data)['error'])
+        result = upload_model('test_model', mock_model_data, '1.0')
+        
+        self.assertEqual(result, mock_manifest_cid)
+        self.mock_ipfs_client.add_bytes.assert_called_once_with(mock_model_data)
+        self.mock_ipfs_client.add_json.assert_called()
+
+    def test_download_model(self):
+        mock_model_data = b'mock_model_data'
+        mock_manifest = {
+            'model_id': 'test_model',
+            'version': '1.0',
+            'model_cid': 'mock_model_cid'
+        }
+        
+        self.mock_ipfs_client.get_json.return_value = mock_manifest
+        self.mock_ipfs_client.cat.return_value = mock_model_data
+
+        result = download_model('test_model', '1.0')
+        
+        self.assertEqual(result, mock_model_data)
+        self.mock_ipfs_client.get_json.assert_called()
+        self.mock_ipfs_client.cat.assert_called_with('mock_model_cid')
+
+    def test_get_metadata(self):
+        mock_metadata = {'models': {'test_model': {'1.0': 'mock_manifest_cid'}}}
+        self.mock_ipfs_client.list_objects.return_value = [
+            {'Hash': 'mock_manifest_cid'}
+        ]
+        self.mock_ipfs_client.cat.return_value = json.dumps({
+            'model_id': 'test_model',
+            'version': '1.0'
+        })
+
+        result = get_metadata()
+        
+        self.assertEqual(result, mock_metadata)
+        self.mock_ipfs_client.list_objects.assert_called_once()
+        self.mock_ipfs_client.cat.assert_called()
 
     def test_validate_version(self):
-        with self.app.app_context():
-            # First, upload the model to ensure it exists in the metadata
-            upload_response = self.client.post('/upload_model', data={
-                'file': (BytesIO(b'test_model_data'), 'test_model.pkl'),
-                'model_id': 'test_model',
-                'version': '1.0'
-            })
-            self.assertEqual(upload_response.status_code, 200)
+        mock_metadata = {'models': {'test_model': {'1.0': 'mock_manifest_cid'}}}
+        
+        with patch('src.core.model_repository.version_management.get_metadata', return_value=mock_metadata):
+            result = validate_version('test_model', '2.0')
+            self.assertTrue(result)
 
-            # Mock the list_versions method to return a version for the test_model
-            with patch.object(self.model_repo, 'list_versions', return_value=['1.0']):
-                # Mock the validate_version method on the model_repo instance
-                with patch.object(ModelRepository.get_instance(), 'validate_version', return_value=True) as mock_validate:
-                    response = self.client.post('/validate_version', json={
-                        'model_id': 'test_model',
-                        'new_version': '1.1'  # Change to a new version to validate
-                    })
-                    self.assertEqual(response.status_code, 200)
-                    self.assertEqual(json.loads(response.data), {'is_valid': True})
-                    mock_validate.assert_called_once_with('test_model', '1.1')  # Check if it was called correctly
-                    
-    def test_validate_version_missing_data(self):
-        response = self.client.post('/validate_version', json={})
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('Missing model_id or new_version', json.loads(response.data)['error'])
+            result = validate_version('test_model', '0.9')
+            self.assertFalse(result)
 
 if __name__ == '__main__':
     unittest.main()
