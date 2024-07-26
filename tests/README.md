@@ -9,9 +9,10 @@ The test suite consists of two main files:
 - `test_api_integration.py`: Integration tests for the API endpoints
 
 ## Setup & Running the Tests
-- When running test_model_repository from local, be sure to run 
+
+- When running test_model_repository from local, be sure to run:
 ```
-   export IPFS_HOST=localhost
+export IPFS_HOST=localhost
 ```
 
 - To run the tests, use the following commands:
@@ -19,6 +20,7 @@ The test suite consists of two main files:
 pytest tests/test_model_repository.py -v -s
 pytest tests/test_api_integration.py -v -s
 ```
+
 
 ## Test Structure
 
@@ -52,10 +54,10 @@ When adding new tests:
 2. For integration tests, add new functions prefixed with `test_` in `test_api_integration.py`.
 
 ## Manual Test Commands
+
 To test the ModelRepository functionality, you can use the following curl commands:
 
-1. Upload a new model:  
-
+1. Upload a new model:
 ```
 curl -X POST \
 -F "file=@tests/mock_onnx/test_model.onnx" \
@@ -64,53 +66,44 @@ curl -X POST \
 http://localhost:5002/upload_model
 ```
 
-2. Add a new version of an existing model:  
-```
-curl -X POST \
--F "file=@tests/mock_onnx/test_model.onnx" \
--F "model_id=test_onnx_model" \
--F "version=1.1" \
-http://localhost:5002/upload_model
-```
+2. Get all metadata:
+curl -X GET "http://localhost:5002/get_metadata"
 
-3. Download a specific version of a model:
-```
-curl -X GET \
-"http://localhost:5002/download_model?model_id=test_onnx_model&version=1.0" \
---output downloaded_model.onnx
-```
+3. Get metadata for a specific model:
+curl -X GET "http://localhost:5002/get_metadata/test_onnx_model"
 
-4. Get all metadata:
-```
-curl -X GET http://localhost:5002/get_metadata
-```
+4. Inspect manifest for a specific model version:
+curl -X GET "http://localhost:5002/inspect_manifest/test_onnx_model/1.0"
 
-5. Get metadata for a specific model:
-```
-curl -X GET http://localhost:5002/get_metadata/test_onnx_model
-```
+5. Get the latest version of a model:
+curl -X GET "http://localhost:5002/get_latest_version/test_onnx_model"
 
 6. Get model content:
-```
-curl -X GET "http://localhost:5002/get_model?model_id=test_onnx_model&version=1.0"
-```
+curl -X GET "http://localhost:5002/get_model/test_onnx_model/1.0"
 
-or
+7. Download a specific version of a model:
+curl -X GET "http://localhost:5002/download_model?model_id=test_onnx_model&version=1.0" --output test_model.onnx
 
-```
-curl -X GET http://localhost:5002/get_model/test_onnx_model/1.0
-```
+8. Inspect metadata for a specific model:
+curl -X GET "http://localhost:5002/inspect_metadata/test_onnx_model"
 
-7. Validate a new version:
-```
+9. Try to get metadata for a non-existent model:
+curl -X GET "http://localhost:5002/get_metadata/non_existent_model"
+
+10. Try to inspect a manifest for a non-existent version:
+curl -X GET "http://localhost:5002/inspect_manifest/test_onnx_model/999.0"
+
+11. Try to get the latest version of a non-existent model:
+curl -X GET "http://localhost:5002/get_latest_version/non_existent_model"
+
+12. Validate a new version:
 curl -X POST \
 -H "Content-Type: application/json" \
 -d '{"model_id": "test_onnx_model", "new_version": "1.2"}' \
 http://localhost:5002/validate_version
-```
+
 
 These commands cover the main functionalities of the ModelRepository. Make sure to run them in the order presented, as some commands depend on the results of previous ones.
-
 
 ## Troubleshooting
 
@@ -119,3 +112,5 @@ If tests are failing:
 2. Verify that mock data is present and correctly located.
 3. Ensure all dependencies are installed and up to date.
 4. Check for any changes in the main codebase that might affect the tests.
+5. Verify that the IPFS daemon is running and accessible.
+6. Check the API server logs for any error messages or unexpected behavior.
