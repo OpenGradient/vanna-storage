@@ -31,6 +31,7 @@ services:
     environment:
       - IPFS_HOST=ipfs
       - IPFS_PORT=5001
+      - IPFS_GATEWAY=https://ipfs.io
     volumes:
       - ./data:/data
 

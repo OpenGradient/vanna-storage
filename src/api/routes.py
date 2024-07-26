@@ -48,7 +48,7 @@ def upload_model():
 
         # Verify metadata update
         updated_metadata = model_repo._get_metadata()
-        logging.debug(f"Updated metadata: {updated_metadata}")
+        print(f"Updated metadata: {updated_metadata}")
         
         return jsonify({'manifest_cid': manifest_cid})
     
@@ -65,9 +65,9 @@ def download_model():
         return jsonify({"error": "model_id and version are required"}), 400
     
     try:
-        logging.info(f"Download request received for model: {model_id}, version: {version}")
+        print(f"Download request received for model: {model_id}, version: {version}")
         model_data = model_repo.download_model(model_id, version)
-        logging.info(f"Downloaded model data size: {len(model_data)} bytes")
+        print(f"Downloaded model data size: {len(model_data)} bytes")
         
         return Response(
             model_data,
@@ -77,21 +77,22 @@ def download_model():
             }
         )
     except ValueError as e:
-        logging.error(f"ValueError in download_model: {str(e)}")
+        print(f"ValueError in download_model: {str(e)}")
         return jsonify({"error": str(e)}), 404
     except Exception as e:
-        logging.error(f"Unexpected error in download_model: {str(e)}")
-        logging.error(traceback.format_exc())
+        print(f"Unexpected error in download_model: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
     
 @bp.route('/get_metadata', methods=['GET'])
 def get_metadata():
+    print("get_metadata route called")
     try:
         metadata = model_repo._get_metadata()
-        logging.debug(f"Retrieved metadata in get_metadata route: {metadata}")
+        print(f"Retrieved metadata in get_metadata route: {metadata}")
         return jsonify(metadata)
     except Exception as e:
-        logging.error(f"Error in get_metadata route: {str(e)}", exc_info=True)
+        print(f"Error in get_metadata route: {str(e)}", exc_info=True)
         return jsonify({"error": "An unexpected error occurred"}), 500
     
 @bp.route('/validate_version', methods=['POST'])
@@ -108,30 +109,30 @@ def validate_version():
         return jsonify({'is_valid': is_valid})
     
     except ValueError as e:
-        logging.error(f"Value error in validate_version: {str(e)}")
+        print(f"Value error in validate_version: {str(e)}")
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        logging.error(f"Unexpected error in validate_version: {str(e)}")
+        print(f"Unexpected error in validate_version: {str(e)}")
         return jsonify({'error': 'An unexpected error occurred'}), 500
 
 @bp.route('/list_versions', methods=['GET'])
 def list_versions():
     model_id = request.args.get('model_id')
-    logging.debug(f"Received request to list versions for model_id: {model_id}")
+    print(f"Received request to list versions for model_id: {model_id}")
     
     if not model_id:
-        logging.error("No model_id provided in request")
+        print("No model_id provided in request")
         return jsonify({"error": "model_id is required"}), 400
     
     try:
         versions = model_repo.list_versions(model_id)
-        logging.debug(f"Versions found for model {model_id}: {versions}")
+        print(f"Versions found for model {model_id}: {versions}")
         return jsonify(versions)
     except ValueError as e:
-        logging.error(f"Error in list_versions: {str(e)}")
+        print(f"Error in list_versions: {str(e)}")
         return jsonify({"error": str(e)}), 404
     except Exception as e:
-        logging.error(f"Error in list_versions: {str(e)}", exc_info=True)
+        print(f"Error in list_versions: {str(e)}", exc_info=True)
         return jsonify({"error": "An unexpected error occurred"}), 500
 
 @bp.route('/list_content', methods=['GET'])
@@ -154,11 +155,11 @@ def list_content():
             }
         })
     except ValueError as e:
-        logging.error(f"ValueError in list_content: {str(e)}")
+        print(f"ValueError in list_content: {str(e)}")
         return jsonify({"error": str(e)}), 404
     except Exception as e:
-        logging.error(f"Unexpected error in list_content: {str(e)}")
-        logging.error(traceback.format_exc())
+        print(f"Unexpected error in list_content: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({"error": "An unexpected error occurred"}), 500
 
 @bp.route('/get_latest_version/<model_id>', methods=['GET'])
@@ -168,13 +169,13 @@ def get_latest_version(model_id):
         return jsonify({'latest_version': latest_version})
     
     except ValueError as e:
-        logging.error(f"Value error in get_latest_version: {str(e)}")
+        print(f"Value error in get_latest_version: {str(e)}")
         return jsonify({'error': str(e)}), 400
     except FileNotFoundError as e:
-        logging.error(f"Model not found in get_latest_version: {str(e)}")
+        print(f"Model not found in get_latest_version: {str(e)}")
         return jsonify({'error': 'Model not found'}), 404
     except Exception as e:
-        logging.error(f"Unexpected error in get_latest_version: {str(e)}")
+        print(f"Unexpected error in get_latest_version: {str(e)}")
         return jsonify({'error': 'An unexpected error occurred'}), 500
 
 @bp.route('/rollback_version', methods=['POST'])
@@ -191,11 +192,11 @@ def rollback_version():
         return jsonify({'success': success})
     
     except ValueError as e:
-        logging.error(f"Value error in rollback_version: {str(e)}")
+        print(f"Value error in rollback_version: {str(e)}")
         return jsonify({'error': str(e)}), 400
     except FileNotFoundError as e:
-        logging.error(f"Model or version not found in rollback_version: {str(e)}")
+        print(f"Model or version not found in rollback_version: {str(e)}")
         return jsonify({'error': 'Model or version not found'}), 404
     except Exception as e:
-        logging.error(f"Unexpected error in rollback_version: {str(e)}")
+        print(f"Unexpected error in rollback_version: {str(e)}")
         return jsonify({'error': 'An unexpected error occurred'}), 500
