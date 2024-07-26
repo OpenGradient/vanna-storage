@@ -8,10 +8,19 @@ def get_model_content(model_id: str, version: str) -> dict:
         
         client = IPFSClient()
         manifest = client.get_json(manifest_cid)
-        if not manifest or 'model_cid' not in manifest:
-            raise ValueError(f"Invalid manifest structure for {model_id} v{version}")
+        logging.info(f"Retrieved manifest: {manifest}")
         
-        model_cid = manifest['model_cid']
+        if not manifest:
+            raise ValueError(f"Empty manifest for {model_id} v{version}")
+        
+        logging.info(f"Manifest keys: {manifest.keys()}")
+        
+        if 'model_cid' in manifest:
+            model_cid = manifest['model_cid']
+        elif 'model_hash' in manifest:
+            model_cid = manifest['model_hash']
+        else:
+            raise ValueError(f"Invalid manifest structure for {model_id} v{version}. Neither 'model_cid' nor 'model_hash' found in {manifest}")
         
         return {
             'manifest': manifest,

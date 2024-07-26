@@ -2,6 +2,7 @@ import json
 import logging
 from core.ipfs_client import IPFSClient
 from packaging import version as parse
+from datetime import datetime
 
 def get_metadata():
     client = IPFSClient()
@@ -17,8 +18,10 @@ def get_metadata():
                     model_id = data['model_id']
                     version = data['version']
                     if model_id not in metadata['models']:
-                        metadata['models'][model_id] = {}
-                    metadata['models'][model_id][version] = obj['Hash']
+                        metadata['models'][model_id] = {'versions': {}, 'latest_version': version}
+                    metadata['models'][model_id]['versions'][version] = obj['Hash']
+                    if version > metadata['models'][model_id]['latest_version']:
+                        metadata['models'][model_id]['latest_version'] = version
             except json.JSONDecodeError:
                 continue
             except Exception as e:
@@ -28,7 +31,7 @@ def get_metadata():
         return metadata
     except Exception as e:
         logging.error(f"Error retrieving metadata: {str(e)}")
-        return {"models": {}, "version": "1.0"}
+        raise
 
 def store_metadata(metadata):
     client = IPFSClient()
@@ -42,18 +45,18 @@ def store_metadata(metadata):
 
 def get_manifest_cid(model_id: str, version: str) -> str:
     metadata = get_metadata()
-    if 'models' not in metadata or model_id not in metadata['models'] or version not in metadata['models'][model_id]:
+    if model_id not in metadata['models'] or version not in metadata['models'][model_id]['versions']:
         raise ValueError(f"No manifest CID found for {model_id} v{version}")
-    return metadata['models'][model_id][version]
+    return metadata['models'][model_id]['versions'][version]
 
 def get_all_latest_models():
     metadata = get_metadata()
     latest_models = {}
     for model_id, versions in metadata['models'].items():
         if versions:
-            latest_version = max(versions.keys(), key=lambda v: parse(v))
+            latest_version = versions['latest_version']
             latest_models[model_id] = {
                 'version': latest_version,
-                'cid': versions[latest_version]
+                'cid': versions['versions'][latest_version]
             }
     return latest_models

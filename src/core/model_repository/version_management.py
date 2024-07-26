@@ -3,9 +3,18 @@ from packaging.version import parse
 from .metadata import get_metadata
 
 def validate_version(model_id: str, new_version: str) -> bool:
-    existing_versions = list_versions(model_id)
-    if not existing_versions:
-        return True
+    from .metadata import get_metadata
+    metadata = get_metadata()
+    
+    if model_id not in metadata['models']:
+        return True  # New model, any version is valid
+    
+    model_versions = metadata['models'][model_id].get('versions', {})
+    if not model_versions:
+        return True  # No existing versions, any version is valid
+    
+    existing_versions = list(model_versions.keys())
+    
     return all(parse(new_version) > parse(v) for v in existing_versions)
 
 def list_versions(model_id: str) -> List[str]:

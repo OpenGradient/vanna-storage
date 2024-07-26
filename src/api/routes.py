@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, Response
 from core.model_repository import upload_model, download_model, get_metadata, validate_version, get_model_content
 import traceback
 from core.ipfs_client import IPFSClient
+import json
 
 bp = Blueprint('api', __name__)
 
@@ -44,6 +45,7 @@ def route_download_model():
         return jsonify({"error": str(e)}), 500
 
 @bp.route('/get_metadata', methods=['GET'])
+@bp.route('/get_metadata/', methods=['GET'])
 def route_get_all_metadata():
     try:
         metadata = get_metadata()
@@ -74,9 +76,16 @@ def route_get_model_content(model_id=None, version=None):
         return jsonify({"error": "model_id and version are required"}), 400
     
     try:
+        # Add debugging logs
+        print(f"Attempting to get content for model_id: {model_id}, version: {version}")
+        metadata = get_metadata()
+        print(f"Metadata for model: {json.dumps(metadata.get('models', {}).get(model_id, {}), indent=2)}")
+        
         content = get_model_content(model_id, version)
         return jsonify(content)
     except Exception as e:
+        print(f"Error in get_model_content: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
 
 @bp.route('/validate_version', methods=['POST'])
@@ -90,17 +99,51 @@ def route_validate_version():
     
     try:
         is_valid = validate_version(model_id, new_version)
-        return jsonify({"is_valid": is_valid})
+        metadata = get_metadata()
+        existing_versions = metadata['models'].get(model_id, {}).get('versions', {}).keys()
+        return jsonify({
+            "is_valid": is_valid,
+            "new_version": new_version,
+            "existing_versions": list(existing_versions)
+        })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Error validating version: {str(e)}"}), 500
     
 @bp.route('/inspect_manifest/<model_id>/<version>', methods=['GET'])
 def route_inspect_manifest(model_id, version):
     try:
         client = IPFSClient()
         metadata = get_metadata()
-        manifest_cid = metadata['models'][model_id][version]
+        if model_id not in metadata['models'] or version not in metadata['models'][model_id]['versions']:
+            return jsonify({"error": f"No manifest found for {model_id} version {version}"}), 404
+        manifest_cid = metadata['models'][model_id]['versions'][version]
         manifest = client.get_json(manifest_cid)
-        return jsonify(manifest)
+        return jsonify({
+            "metadata_manifest_cid": manifest_cid,
+            "manifest_content": manifest
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@bp.route('/inspect_metadata/<model_id>', methods=['GET'])
+def route_inspect_metadata(model_id):
+    try:
+        metadata = get_metadata()
+        if model_id in metadata['models']:
+            return jsonify(metadata['models'][model_id])
+        else:
+            return jsonify({"error": f"Model {model_id} not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@bp.route('/get_latest_version/<model_id>', methods=['GET'])
+def route_get_latest_version(model_id):
+    try:
+        metadata = get_metadata()
+        if model_id in metadata['models'] and 'latest_version' in metadata['models'][model_id]:
+            latest_version = metadata['models'][model_id]['latest_version']
+            return jsonify({'latest_version': latest_version})
+        else:
+            return jsonify({"error": f"No versions found for model {model_id}"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
