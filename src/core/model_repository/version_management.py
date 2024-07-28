@@ -26,3 +26,18 @@ def get_latest_version(model_id: str) -> str:
     if not versions:
         raise ValueError(f"No versions available for model_id {model_id}")
     return max(versions, key=lambda v: parse(v))
+
+def get_versions(model_id):
+    metadata = get_metadata()
+    if model_id not in metadata['models']:
+        return []
+    return list(metadata['models'][model_id]['versions'].keys())
+
+def inspect_manifest(model_id, version):
+    metadata = get_metadata()
+    if model_id not in metadata['models'] or version not in metadata['models'][model_id]['versions']:
+        return None
+    manifest_cid = metadata['models'][model_id]['versions'][version]
+    # Fetch and return the manifest content from IPFS
+    # You'll need to implement this part based on your IPFS client
+    return {"model_id": model_id, "version": version, "manifest_cid": manifest_cid}

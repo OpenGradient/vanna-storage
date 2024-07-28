@@ -7,7 +7,7 @@ def upload_model(model_id: str, serialized_model: bytes, version: str) -> str:
     client = IPFSClient()
     try:
         metadata = get_metadata()
-        if model_id in metadata['models'] and version in metadata['models'][model_id]:
+        if model_id in metadata['models'] and version in metadata['models'][model_id].get('versions', {}):
             raise ValueError(f"Version {version} already exists for model {model_id}")
 
         model_cid = client.add_bytes(serialized_model)
@@ -23,8 +23,8 @@ def upload_model(model_id: str, serialized_model: bytes, version: str) -> str:
 
         # Update metadata
         if model_id not in metadata['models']:
-            metadata['models'][model_id] = {}
-        metadata['models'][model_id][version] = manifest_cid
+            metadata['models'][model_id] = {'versions': {}}
+        metadata['models'][model_id]['versions'][version] = manifest_cid
         
         # Update latest version
         if 'latest_version' not in metadata['models'][model_id] or version > metadata['models'][model_id]['latest_version']:
@@ -33,6 +33,11 @@ def upload_model(model_id: str, serialized_model: bytes, version: str) -> str:
         # Store updated metadata
         new_metadata_cid = client.add_json(metadata)
         logging.debug(f"Updated metadata stored with CID: {new_metadata_cid}")
+
+        # Verify the metadata was updated correctly
+        updated_metadata = client.get_json(new_metadata_cid)
+        if updated_metadata['models'][model_id]['versions'][version] != manifest_cid:
+            raise ValueError("Metadata update verification failed")
 
         return manifest_cid
     except Exception as e:
