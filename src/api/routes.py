@@ -1,6 +1,6 @@
+import traceback
 from flask import Blueprint, request, jsonify, Response
 from core.model_repository import upload_model, download_model, get_metadata, validate_version, get_model_content
-from core.model_repository.version_management import get_versions, inspect_manifest
 from core.ipfs_client import IPFSClient
 import json
 
@@ -124,43 +124,3 @@ def route_inspect_manifest(model_id, version):
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-@bp.route('/inspect_metadata/<model_id>', methods=['GET'])
-def route_inspect_metadata(model_id):
-    try:
-        metadata = get_metadata()
-        if model_id in metadata['models']:
-            return jsonify(metadata['models'][model_id])
-        else:
-            return jsonify({"error": f"Model {model_id} not found"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@bp.route('/get_latest_version/<model_id>', methods=['GET'])
-def route_get_latest_version(model_id):
-    try:
-        metadata = get_metadata()
-        if model_id in metadata['models'] and 'latest_version' in metadata['models'][model_id]:
-            latest_version = metadata['models'][model_id]['latest_version']
-            return jsonify({'latest_version': latest_version})
-        else:
-            return jsonify({"error": f"No versions found for model {model_id}"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@bp.route('/get_versions', methods=['GET'])
-def api_get_versions():
-    model_id = request.args.get('model_id')
-    if not model_id:
-        return jsonify({"error": "model_id is required"}), 400
-    versions = get_versions(model_id)
-    return jsonify(versions)
-
-@bp.route('/inspect_manifest', methods=['GET'])
-def api_inspect_manifest():
-    model_id = request.args.get('model_id')
-    version = request.args.get('version')
-    if not model_id or not version:
-        return jsonify({"error": "model_id and version are required"}), 400
-    manifest = inspect_manifest(model_id, version)
-    return jsonify(manifest)
