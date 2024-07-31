@@ -70,7 +70,7 @@ def route_download_model():
         current_app.logger.error(f"Error downloading model: {str(e)}")
         raise InvalidUsage('Error downloading model', status_code=500)
 
-@bp.route('/get_metadata', methods=['GET'])
+@bp.route('/model_repo_metadata', methods=['GET'])
 def route_get_metadata():
     try:
         metadata = get_metadata()
@@ -79,7 +79,7 @@ def route_get_metadata():
         current_app.logger.error(f"Error getting metadata: {str(e)}")
         raise InvalidUsage('Error getting metadata', status_code=500)
 
-@bp.route('/get_metadata/<model_id>', methods=['GET'])
+@bp.route('/model_metadata/<model_id>', methods=['GET'])
 def route_get_model_metadata(model_id):
     try:
         metadata = get_metadata()
@@ -92,30 +92,27 @@ def route_get_model_metadata(model_id):
         current_app.logger.error(f"Error getting model metadata: {str(e)}")
         raise InvalidUsage('Error getting model metadata', status_code=500)
 
-@bp.route('/get_model/<model_id>/<version>', methods=['GET'])
-def route_get_model(model_id, version):
-    try:
-        model_content = get_model_content(model_id, version)
-        return jsonify({"model_content": model_content})
-    except Exception as e:
-        current_app.logger.error(f"Error getting model content: {str(e)}")
-        raise InvalidUsage('Error getting model content', status_code=500)
-
-@bp.route('/inspect_manifest/<model_id>/<version>', methods=['GET'])
-def route_inspect_manifest(model_id, version):
+@bp.route('/model_info/<model_id>/<version>', methods=['GET'])
+def route_get_model_info(model_id, version):
     try:
         client = IPFSClient()
         metadata = get_metadata()
+        
         if model_id not in metadata['models'] or version not in metadata['models'][model_id]['versions']:
             raise InvalidUsage(f"No manifest found for {model_id} version {version}", status_code=404)
+        
         manifest_cid = metadata['models'][model_id]['versions'][version]
         manifest = client.get_json(manifest_cid)
+        
+        model_content = get_model_content(model_id, version)
+        
         return jsonify({
             "metadata_manifest_cid": manifest_cid,
-            "manifest_content": manifest
+            "manifest_content": manifest,
+            "model_content": model_content
         })
     except InvalidUsage:
         raise
     except Exception as e:
-        current_app.logger.error(f"Error inspecting manifest: {str(e)}")
-        raise InvalidUsage('Error inspecting manifest', status_code=500)
+        current_app.logger.error(f"Error getting model info: {str(e)}")
+        raise InvalidUsage('Error getting model info', status_code=500)
