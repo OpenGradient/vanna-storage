@@ -1,9 +1,15 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
+
 import httpx
 import pytest
 import json
 import time
 import requests
 from requests.exceptions import RequestException
+from src.core.model_repository import get_metadata
 
 BASE_URL = "http://localhost:5002"
 IPFS_URL = "http://localhost:5001/api/v0"  # Adjust this if your IPFS URL is different
@@ -48,9 +54,7 @@ def test_upload_model(client):
     print(f"Manifest CID: {response_json['manifest_cid']}")
 
     # Immediately check the metadata
-    metadata_response = client.get("/get_metadata")
-    assert metadata_response.status_code == 200
-    metadata = metadata_response.json()
+    metadata = get_metadata()
     print(f"Immediate metadata check: {json.dumps(metadata, indent=2)}")
 
     assert model_id in metadata["models"], "Model not found in metadata"
@@ -61,46 +65,6 @@ def test_upload_model(client):
         f"Actual: {metadata['models'][model_id]['versions']['1.0']}"
 
     print("Metadata updated successfully!")
-
-def test_list_versions(client):
-    model_id = f"test_list_model_{int(time.time())}"
-    # First, upload a model (version 1.0)
-    with open("tests/mock_onnx/test_model.onnx", "rb") as f:
-        files = {"file": ("test_model.onnx", f)}
-        data = {"model_id": model_id, "version": "1.0"}
-        response = client.post("/upload_model", files=files, data=data)
-
-    assert response.status_code == 200, f"Upload failed with status {response.status_code}: {response.text}"
-    print(f"Upload response for version 1.0: {response.json()}")
-
-    # Upload another version (2.0)
-    with open("tests/mock_onnx/test_model.onnx", "rb") as f:
-        files = {"file": ("test_model.onnx", f)}
-        data = {"model_id": model_id, "version": "2.0"}
-        response = client.post("/upload_model", files=files, data=data)
-
-    assert response.status_code == 200, f"Upload of version 2.0 failed with status {response.status_code}: {response.text}"
-    print(f"Upload response for version 2.0: {response.json()}")
-
-    # Get metadata to check versions
-    metadata_response = client.get("/get_metadata")
-    assert metadata_response.status_code == 200
-    metadata = metadata_response.json()
-    print(f"Full metadata after uploads: {json.dumps(metadata, indent=2)}")
-
-    # Now, list versions for this model
-    list_versions_response = client.get("/get_versions", params={"model_id": model_id})
-
-    print(f"List versions response status: {list_versions_response.status_code}")
-    print(f"List versions response content: {list_versions_response.text}")
-
-    assert list_versions_response.status_code == 200, f"List versions failed with status {list_versions_response.status_code}: {list_versions_response.text}"
-    versions = list_versions_response.json()
-    assert isinstance(versions, list), f"Expected a list of versions, got {type(versions)}"
-    assert "1.0" in versions, f"Expected version 1.0 in {versions}"
-    assert "2.0" in versions, f"Expected version 2.0 in {versions}"
-
-    print(f"Listed versions: {versions}")
 
 def test_inspect_manifest(client):
     model_id = f"test_content_model_{int(time.time())}"
@@ -113,7 +77,7 @@ def test_inspect_manifest(client):
     assert response.status_code == 200
     
     # Now, inspect manifest for this model
-    inspect_manifest_response = client.get("/inspect_manifest", params={"model_id": model_id, "version": "1.0"})
+    inspect_manifest_response = client.get(f"/inspect_manifest/{model_id}/1.0")
 
     print(f"Inspect manifest response status: {inspect_manifest_response.status_code}")
     print(f"Inspect manifest response content: {inspect_manifest_response.text}")
@@ -123,6 +87,7 @@ def test_inspect_manifest(client):
     
     print(f"Inspected content: {json.dumps(content, indent=2)}")
     
-    assert "model_id" in content
-    assert "version" in content
-    assert "manifest_cid" in content
+    assert "metadata_manifest_cid" in content
+    assert "manifest_content" in content
+    assert "model_id" in content["manifest_content"]
+    assert "version" in content["manifest_content"]

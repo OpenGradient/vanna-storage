@@ -18,7 +18,7 @@ class TestModelRepository(TestCase):
     @classmethod
     def setUpClass(cls):
         cls.mock_ipfs_client = MagicMock()
-        cls.mock_ipfs_patcher = patch('src.core.model_repository.upload.IPFSClient', return_value=cls.mock_ipfs_client)
+        cls.mock_ipfs_patcher = patch('src.core.model_repository.IPFSClient', return_value=cls.mock_ipfs_client)
         cls.mock_ipfs_patcher.start()
 
         cls.app = Flask(__name__)
@@ -51,7 +51,7 @@ class TestModelRepository(TestCase):
         self.mock_ipfs_client.add_json.side_effect = ['mock_manifest_cid', 'mock_metadata_cid']
         self.mock_ipfs_client.get_json.side_effect = [mock_metadata, mock_updated_metadata]
 
-        with patch('src.core.model_repository.upload.get_metadata', return_value=mock_metadata):
+        with patch('src.core.model_repository.get_metadata', return_value=mock_metadata):
             result = upload_model('test_model', mock_model_data, '1.0')
 
         self.assertEqual(result, 'mock_manifest_cid')
@@ -70,9 +70,8 @@ class TestModelRepository(TestCase):
         self.mock_ipfs_client.get_json.return_value = mock_manifest
         self.mock_ipfs_client.cat.return_value = mock_model_data
 
-        with patch('src.core.model_repository.download.get_manifest_cid', return_value='mock_manifest_cid'):
-            with patch('src.core.model_repository.download.IPFSClient', return_value=self.mock_ipfs_client):
-                result = download_model('test_model', '1.0')
+        with patch('src.core.model_repository.get_manifest_cid', return_value='mock_manifest_cid'):
+            result = download_model('test_model', '1.0')
         
         print(f"Mock IPFS client get_json called: {self.mock_ipfs_client.get_json.called}")
         print(f"Mock IPFS client cat called: {self.mock_ipfs_client.cat.called}")
@@ -99,7 +98,7 @@ class TestModelRepository(TestCase):
             'version': '2.0'
         }
         
-        with patch('src.core.model_repository.metadata.IPFSClient') as mock_ipfs_client:
+        with patch('src.core.model_repository.IPFSClient') as mock_ipfs_client:
             mock_ipfs_client.return_value.list_objects.return_value = mock_objects
             mock_ipfs_client.return_value.cat.side_effect = [
                 json.dumps(mock_manifest_1),
@@ -139,7 +138,7 @@ class TestModelRepository(TestCase):
             }
         }
 
-        with patch('src.core.model_repository.version_management.get_metadata', return_value=mock_metadata):
+        with patch('src.core.model_repository.get_metadata', return_value=mock_metadata):
             self.assertTrue(validate_version('test_model', '2.0'))
             self.assertTrue(validate_version('test_model', '1.2'))
             self.assertFalse(validate_version('test_model', '1.1'))

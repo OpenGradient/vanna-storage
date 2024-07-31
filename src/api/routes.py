@@ -1,7 +1,7 @@
 import traceback
 from flask import Blueprint, request, jsonify, Response
-from core.model_repository import upload_model, download_model, get_metadata, validate_version, get_model_content
-from core.ipfs_client import IPFSClient
+from src.core.model_repository import upload_model, download_model, get_metadata, validate_version, get_model_content
+from src.core.ipfs_client import IPFSClient
 import json
 
 bp = Blueprint('api', __name__)

@@ -142,7 +142,7 @@ def validate_version(model_id: str, new_version: str) -> bool:
     if model_id not in metadata['models']:
         return True
     existing_versions = metadata['models'][model_id].get('versions', {}).keys()
-    return all(version.parse(new_version) > version.parse(v) for v in existing_versions)
+    return all(parse.parse(new_version) > parse.parse(v) for v in existing_versions)
 
 def list_versions(model_id: str) -> List[str]:
     metadata = get_metadata()
