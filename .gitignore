@@ -6,7 +6,7 @@ __pycache__/
 models/
 downloaded_model
 test_model.onnx
-
+environment.yml
 # C extensions
 *.so
 
