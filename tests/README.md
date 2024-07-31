@@ -123,6 +123,12 @@ To test the ModelRepository functionality, you can use the following curl comman
 {"models":{"test_identity_model":{"latest_version":"1.01","versions":{"1.00":"QmSKJWWMwdZ1dvYUo9nhv3jATAiNtdsqyWpyQHqHL4RdGg","1.01":"QmSMcB7ArKRdUfqaU9kznJrBuhZ9pr3Hd6QKqyqcHRZHry"}}},"version":"1.0"}
 ```
 
+10. List all versions of a model:
+```
+❯ curl -X GET http://localhost:5002/list_versions/test_identity_model
+{"model_id":"test_identity_model","versions":["1.00","1.01"]}
+```
+
 These commands cover the main functionalities of the ModelRepository. Make sure to run them in the order presented, as some commands depend on the results of previous ones.
 
 ## Troubleshooting
