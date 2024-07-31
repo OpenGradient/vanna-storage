@@ -1,7 +1,6 @@
 import json
 import requests
 import os
-import logging
 import traceback
 
 class IPFSClient:

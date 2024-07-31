@@ -79,34 +79,6 @@ def download_model(model_id: str, version: str) -> bytes:
         logging.error(f"Error in download_model: {str(e)}", exc_info=True)
         raise
 
-def store_metadata(metadata):
-    client = IPFSClient()
-    try:
-        new_cid = client.add_json(metadata)
-        logging.info(f"Stored metadata with new CID: {new_cid}")
-        return new_cid
-    except Exception as e:
-        logging.error(f"Error storing metadata: {str(e)}")
-        raise
-
-def get_manifest_cid(model_id: str, version: str) -> str:
-    metadata = get_metadata()
-    if model_id not in metadata['models'] or version not in metadata['models'][model_id]['versions']:
-        raise ValueError(f"No manifest CID found for {model_id} v{version}")
-    return metadata['models'][model_id]['versions'][version]
-
-def get_all_latest_models():
-    metadata = get_metadata()
-    latest_models = {}
-    for model_id, versions in metadata['models'].items():
-        if versions:
-            latest_version = versions['latest_version']
-            latest_models[model_id] = {
-                'version': latest_version,
-                'cid': versions['versions'][latest_version]
-            }
-    return latest_models
-
 def get_model_content(model_id: str, version: str) -> dict:
     try:
         manifest_cid = get_manifest_cid(model_id, version)
@@ -215,5 +187,5 @@ def get_all_latest_models():
 __all__ = [
     'get_metadata', 'store_metadata', 'get_manifest_cid', 'get_all_latest_models',
     'upload_model', 'download_model',
-    'validate_version', 'list_versions', 'get_latest_version', 'inspect_manifest'
+    'validate_version', 'list_versions', 'get_latest_version', 
 ]
