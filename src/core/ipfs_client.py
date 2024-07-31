@@ -121,7 +121,3 @@ class IPFSClient:
             print(f"Error listing objects from IPFS: {str(e)}")
             print(traceback.format_exc())
             raise
-
-def ipfs_client():
-    print("Creating new IPFSClient instance")
-    return IPFSClient()

@@ -1,7 +1,7 @@
 import traceback
 from flask import Blueprint, request, jsonify, Response
-from src.core.model_repository import upload_model, download_model, get_metadata, validate_version, get_model_content
-from src.core.ipfs_client import IPFSClient
+from core.model_repository import upload_model, download_model, get_metadata, get_model_content
+from core.ipfs_client import IPFSClient
 import json
 
 bp = Blueprint('api', __name__)
@@ -88,27 +88,6 @@ def route_get_model_content(model_id=None, version=None):
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
 
-@bp.route('/validate_version', methods=['POST'])
-def route_validate_version():
-    data = request.json
-    model_id = data.get('model_id')
-    new_version = data.get('new_version')
-    
-    if not model_id or not new_version:
-        return jsonify({"error": "model_id and new_version are required"}), 400
-    
-    try:
-        is_valid = validate_version(model_id, new_version)
-        metadata = get_metadata()
-        existing_versions = metadata['models'].get(model_id, {}).get('versions', {}).keys()
-        return jsonify({
-            "is_valid": is_valid,
-            "new_version": new_version,
-            "existing_versions": list(existing_versions)
-        })
-    except Exception as e:
-        return jsonify({"error": f"Error validating version: {str(e)}"}), 500
-    
 @bp.route('/inspect_manifest/<model_id>/<version>', methods=['GET'])
 def route_inspect_manifest(model_id, version):
     try:

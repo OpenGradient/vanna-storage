@@ -67,40 +67,43 @@ http://localhost:5002/upload_model
 ```
 
 2. Get all metadata:
+```
 curl -X GET "http://localhost:5002/get_metadata"
+```
 
 3. Get metadata for a specific model:
+```
 curl -X GET "http://localhost:5002/get_metadata/test_onnx_model"
+```
 
 4. Inspect manifest for a specific model version:
+```
 curl -X GET "http://localhost:5002/inspect_manifest/test_onnx_model/1.0"
+```
 
-5. Get the latest version of a model:
-curl -X GET "http://localhost:5002/get_latest_version/test_onnx_model"
-
-6. Get model content:
+5. Get model content:
+```
 curl -X GET "http://localhost:5002/get_model/test_onnx_model/1.0"
+```
 
-7. Download a specific version of a model:
+6. Download a specific version of a model:
+```
 curl -X GET "http://localhost:5002/download_model?model_id=test_onnx_model&version=1.0" --output test_model.onnx
+```
 
-8. Inspect metadata for a specific model:
-curl -X GET "http://localhost:5002/inspect_metadata/test_onnx_model"
-
-9. Try to get metadata for a non-existent model:
+7. Try to get metadata for a non-existent model:
+```
 curl -X GET "http://localhost:5002/get_metadata/non_existent_model"
-
-10. Try to inspect a manifest for a non-existent version:
+```
+8. Try to get metadata for a non-existent model:
+```
+curl -X GET "http://localhost:5002/get_metadata/non_existent_model"
+```
+9. Try to inspect a manifest for a non-existent version:
 curl -X GET "http://localhost:5002/inspect_manifest/test_onnx_model/999.0"
 
-11. Try to get the latest version of a non-existent model:
+10. Try to get the latest version of a non-existent model:
 curl -X GET "http://localhost:5002/get_latest_version/non_existent_model"
-
-12. Validate a new version:
-curl -X POST \
--H "Content-Type: application/json" \
--d '{"model_id": "test_onnx_model", "new_version": "1.2"}' \
-http://localhost:5002/validate_version
 
 
 These commands cover the main functionalities of the ModelRepository. Make sure to run them in the order presented, as some commands depend on the results of previous ones.

@@ -4,14 +4,23 @@ from core.ipfs_client import IPFSClient
 from packaging import version as parse
 from datetime import datetime
 from typing import List
+import re
 
 def upload_model(model_id: str, serialized_model: bytes, version: str) -> str:
     client = IPFSClient()
     try:
-        metadata = get_metadata()
-        if model_id in metadata['models'] and version in metadata['models'][model_id].get('versions', {}):
-            raise ValueError(f"Version {version} already exists for model {model_id}")
+        # Validate version format
+        if not re.match(r'^\d+\.\d{2}$', version):
+            raise ValueError(f"Invalid version format. Must be in the form 'x.yz' where x and y are integers.")
 
+        metadata = get_metadata()
+        
+        # Version validation
+        if model_id in metadata['models']:
+            existing_versions = metadata['models'][model_id].get('versions', {}).keys()
+            if not all(parse.parse(version) > parse.parse(v) for v in existing_versions):
+                raise ValueError(f"Version {version} is not greater than all existing versions for model {model_id}")
+        
         model_cid = client.add_bytes(serialized_model)
         logging.debug(f"Uploaded model with CID: {model_cid}")
         manifest = {
@@ -25,25 +34,18 @@ def upload_model(model_id: str, serialized_model: bytes, version: str) -> str:
 
         # Update metadata
         if model_id not in metadata['models']:
-            metadata['models'][model_id] = {'versions': {}}
+            metadata['models'][model_id] = {'versions': {}, 'latest_version': '0.00'}
         metadata['models'][model_id]['versions'][version] = manifest_cid
         
         # Update latest version
-        if 'latest_version' not in metadata['models'][model_id] or version > metadata['models'][model_id]['latest_version']:
+        current_latest = metadata['models'][model_id]['latest_version']
+        if parse.parse(version) > parse.parse(current_latest):
             metadata['models'][model_id]['latest_version'] = version
 
-        # Store updated metadata
-        new_metadata_cid = client.add_json(metadata)
-        logging.debug(f"Updated metadata stored with CID: {new_metadata_cid}")
-
-        # Verify the metadata was updated correctly
-        updated_metadata = client.get_json(new_metadata_cid)
-        if updated_metadata['models'][model_id]['versions'][version] != manifest_cid:
-            raise ValueError("Metadata update verification failed")
-
+        store_metadata(metadata)
         return manifest_cid
     except Exception as e:
-        logging.error(f"Error in upload_model: {str(e)}", exc_info=True)
+        logging.error(f"Error uploading model: {str(e)}")
         raise
 
 def download_model(model_id: str, version: str) -> bytes:
@@ -109,13 +111,6 @@ def get_model_content(model_id: str, version: str) -> dict:
         logging.error(f"Error in get_model_content: {str(e)}", exc_info=True)
         raise
 
-def validate_version(model_id: str, new_version: str) -> bool:
-    metadata = get_metadata()
-    if model_id not in metadata['models']:
-        return True
-    existing_versions = metadata['models'][model_id].get('versions', {}).keys()
-    return all(parse.parse(new_version) > parse.parse(v) for v in existing_versions)
-
 def list_versions(model_id: str) -> List[str]:
     metadata = get_metadata()
     return list(metadata.get('models', {}).get(model_id, {}).keys())
@@ -124,7 +119,7 @@ def get_latest_version(model_id: str) -> str:
     versions = list_versions(model_id)
     if not versions:
         raise ValueError(f"No versions available for model_id {model_id}")
-    return max(versions, key=lambda v: parse(v))
+    return max(versions, key=lambda v: parse.parse(v))
 
 def get_metadata():
     client = IPFSClient()
@@ -140,9 +135,9 @@ def get_metadata():
                     model_id = data['model_id']
                     version = data['version']
                     if model_id not in metadata['models']:
-                        metadata['models'][model_id] = {'versions': {}, 'latest_version': version}
+                        metadata['models'][model_id] = {'versions': {}, 'latest_version': '0.00'}
                     metadata['models'][model_id]['versions'][version] = obj['Hash']
-                    if version > metadata['models'][model_id]['latest_version']:
+                    if parse.parse(version) > parse.parse(metadata['models'][model_id]['latest_version']):
                         metadata['models'][model_id]['latest_version'] = version
             except json.JSONDecodeError:
                 continue
@@ -187,5 +182,5 @@ def get_all_latest_models():
 __all__ = [
     'get_metadata', 'store_metadata', 'get_manifest_cid', 'get_all_latest_models',
     'upload_model', 'download_model',
-    'validate_version', 'list_versions', 'get_latest_version', 
+    'list_versions', 'get_latest_version', 
 ]

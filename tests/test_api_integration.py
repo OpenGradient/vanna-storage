@@ -42,7 +42,7 @@ def test_upload_model(client):
     model_id = f"test_onnx_model_{int(time.time())}"
     with open("tests/mock_onnx/test_model.onnx", "rb") as f:
         files = {"file": ("test_model.onnx", f)}
-        data = {"model_id": model_id, "version": "1.0"}
+        data = {"model_id": model_id, "version": "1.00"}  # Changed from "1.0" to "1.00"
         response = client.post("/upload_model", files=files, data=data)
 
     print(f"Response status code: {response.status_code}")
@@ -59,10 +59,10 @@ def test_upload_model(client):
 
     assert model_id in metadata["models"], "Model not found in metadata"
     assert "versions" in metadata["models"][model_id], "Versions not found in metadata"
-    assert "1.0" in metadata["models"][model_id]["versions"], "Version 1.0 not found in metadata"
-    assert metadata["models"][model_id]["versions"]["1.0"] == response_json["manifest_cid"], \
+    assert "1.00" in metadata["models"][model_id]["versions"], "Version 1.00 not found in metadata"
+    assert metadata["models"][model_id]["versions"]["1.00"] == response_json["manifest_cid"], \
         f"Manifest CID mismatch. Expected: {response_json['manifest_cid']}, " \
-        f"Actual: {metadata['models'][model_id]['versions']['1.0']}"
+        f"Actual: {metadata['models'][model_id]['versions']['1.00']}"
 
     print("Metadata updated successfully!")
 
@@ -71,13 +71,13 @@ def test_inspect_manifest(client):
     # First, upload a model
     with open("tests/mock_onnx/test_model.onnx", "rb") as f:
         files = {"file": ("test_model.onnx", f)}
-        data = {"model_id": model_id, "version": "1.0"}
+        data = {"model_id": model_id, "version": "1.00"}  # Changed from "1.0" to "1.00"
         response = client.post("/upload_model", files=files, data=data)
     
     assert response.status_code == 200
     
     # Now, inspect manifest for this model
-    inspect_manifest_response = client.get(f"/inspect_manifest/{model_id}/1.0")
+    inspect_manifest_response = client.get(f"/inspect_manifest/{model_id}/1.00")  # Changed from "1.0" to "1.00"
 
     print(f"Inspect manifest response status: {inspect_manifest_response.status_code}")
     print(f"Inspect manifest response content: {inspect_manifest_response.text}")

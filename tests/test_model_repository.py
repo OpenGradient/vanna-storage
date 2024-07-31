@@ -5,7 +5,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__f
 
 # Now import the required modules
 from src.api.routes import bp
-from src.core.model_repository import upload_model, download_model, get_metadata, validate_version
+from src.core.model_repository import upload_model, download_model, get_metadata
 
 import json
 from unittest import TestCase
@@ -39,9 +39,9 @@ class TestModelRepository(TestCase):
             'models': {
                 'test_model': {
                     'versions': {
-                        '1.0': 'mock_manifest_cid'
+                        '1.00': 'mock_manifest_cid'
                     },
-                    'latest_version': '1.0'
+                    'latest_version': '1.00'
                 }
             },
             'version': '1.0'
@@ -49,15 +49,15 @@ class TestModelRepository(TestCase):
 
         self.mock_ipfs_client.add_bytes.return_value = 'mock_model_cid'
         self.mock_ipfs_client.add_json.side_effect = ['mock_manifest_cid', 'mock_metadata_cid']
-        self.mock_ipfs_client.get_json.side_effect = [mock_metadata, mock_updated_metadata]
-
-        with patch('src.core.model_repository.get_metadata', return_value=mock_metadata):
-            result = upload_model('test_model', mock_model_data, '1.0')
+        
+        with patch('src.core.model_repository.get_metadata', return_value=mock_metadata), \
+             patch('src.core.model_repository.store_metadata') as mock_store_metadata:
+            result = upload_model('test_model', mock_model_data, '1.00')
 
         self.assertEqual(result, 'mock_manifest_cid')
         self.mock_ipfs_client.add_bytes.assert_called_once_with(mock_model_data)
-        self.assertEqual(self.mock_ipfs_client.add_json.call_count, 2)
-        self.assertEqual(self.mock_ipfs_client.get_json.call_count, 2)
+        self.assertEqual(self.mock_ipfs_client.add_json.call_count, 1)  # Only called for manifest
+        mock_store_metadata.assert_called_once()  # Check if store_metadata was called
 
     def test_download_model(self):
         mock_model_data = b'test_model_data'
@@ -125,26 +125,6 @@ class TestModelRepository(TestCase):
         self.assertEqual(result, expected_metadata)
         mock_ipfs_client.return_value.list_objects.assert_called_once()
         self.assertEqual(mock_ipfs_client.return_value.cat.call_count, 3)
-
-    def test_validate_version(self):
-        mock_metadata = {
-            'models': {
-                'test_model': {
-                    'versions': {
-                        '1.0': 'mock_manifest_cid',
-                        '1.1': 'mock_manifest_cid'
-                    }
-                }
-            }
-        }
-
-        with patch('src.core.model_repository.get_metadata', return_value=mock_metadata):
-            self.assertTrue(validate_version('test_model', '2.0'))
-            self.assertTrue(validate_version('test_model', '1.2'))
-            self.assertFalse(validate_version('test_model', '1.1'))
-            self.assertFalse(validate_version('test_model', '1.0'))
-            self.assertFalse(validate_version('test_model', '0.9'))
-            self.assertTrue(validate_version('new_model', '1.0'))
 
 if __name__ == '__main__':
     unittest.main()
