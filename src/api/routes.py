@@ -122,3 +122,12 @@ def route_get_model_info(model_id, version):
     except Exception as e:
         current_app.logger.error(f"Error getting model info: {str(e)}")
         raise InvalidUsage('Error getting model info', status_code=500, payload={'details': str(e)})
+
+@bp.route('/list_versions/<model_id>', methods=['GET'])
+def route_list_versions(model_id):
+    try:
+        versions = model_repo.list_versions(model_id)
+        return jsonify({'model_id': model_id, 'versions': versions})
+    except Exception as e:
+        current_app.logger.error(f"Error listing versions: {str(e)}")
+        raise InvalidUsage('Error listing versions', status_code=500, payload={'details': str(e)})

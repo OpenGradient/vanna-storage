@@ -114,7 +114,7 @@ class ModelRepository:
 
     def list_versions(self, model_id: str) -> List[str]:
         metadata = self.get_metadata()
-        return list(metadata.get('models', {}).get(model_id, {}).keys())
+        return list(metadata.get('models', {}).get(model_id, {}).get('versions', {}).keys())
 
     def get_latest_version(self, model_id: str) -> str:
         versions = self.list_versions(model_id)
