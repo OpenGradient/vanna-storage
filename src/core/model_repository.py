@@ -125,7 +125,7 @@ class ModelRepository:
     def get_metadata(self):
         try:
             objects = self.client.list_objects()
-            metadata = {"models": {}, "version": "1.0"}
+            metadata = {"models": {}}
 
             for obj in objects:
                 try:
