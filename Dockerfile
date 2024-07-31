@@ -4,7 +4,6 @@ FROM python:3.8-alpine
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV FORCE_METADATA_INIT=true
 
 # Install dependencies required for compiling Python packages
 RUN apk add --no-cache --virtual .build-deps gcc musl-dev python3-dev libffi-dev openssl-dev \
