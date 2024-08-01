@@ -1,0 +1,2 @@
+MODEL_FOLDER = './models'
+ONE_GB_IN_BYTES = 1024 ** 3

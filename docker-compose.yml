@@ -13,13 +13,25 @@ services:
       - ipfs_data:/data/ipfs
       - ${PWD}/ipfs/swarm.key:/data/ipfs/swarm.key
       - ${PWD}/ipfs/init.sh:/container-init.d/ipfs-init.sh
+    healthcheck:
+      test: ["CMD", "ipfs", "id"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   server:
-    image: vanna-storage
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "5002:5000"
     depends_on:
-      - ipfs
+      ipfs:
+        condition: service_healthy
+    environment:
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - IPFS_GATEWAY=https://ipfs.io
     volumes:
       - ./data:/data
 

@@ -1,0 +1,13 @@
+name: model-repo
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.8
+  - pip
+  - pip:
+    - httpx
+    - pytest
+    - requests
+    - gunicorn
+    - packaging
