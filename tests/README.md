@@ -59,29 +59,37 @@ To test the ModelRepository functionality, you can use the following curl comman
 
 1. Upload the mock ONNX model:
 ```
-❯ curl -X POST -H "Content-Type: multipart/form-data" \
+curl -X POST -H "Content-Type: multipart/form-data" \
      -F "file=@tests/mock_onnx/test_model.onnx" \
      -F "model_id=test_identity_model" \
      http://localhost:5002/upload_model
-{"manifest_cid":"QmSKJWWMwdZ1dvYUo9nhv3jATAiNtdsqyWpyQHqHL4RdGg","version":"1.00"}
+```
+```
+{"manifest_cid":"QmSKJWWMwdZ1dvYUo9nhv3jATAiNtdsqyWpyQHqHL4RdGg"}
 ```
 
 2. Get model metadata:
 ```
-❯ curl -X GET http://localhost:5002/model_metadata/test_identity_model
+curl -X GET http://localhost:5002/model_metadata/test_identity_model
+```
+```
 {"latest_version":"1.00","versions":{"1.00":"QmSKJWWMwdZ1dvYUo9nhv3jATAiNtdsqyWpyQHqHL4RdGg"}}
 ```
 
 3. Get model info (assuming the server assigned version 1.00)
 ```
-❯ curl -X GET http://localhost:5002/model_info/test_identity_model/1.00
+curl -X GET http://localhost:5002/model_info/test_identity_model/1.00
+```
+```
 {"manifest_content":{"created_at":"2024-07-31T21:35:03.266643","model_cid":"QmcLNqhhS8w5mapFr593Qx6DKj2itt3FPXL4kqPTAuWhcx","model_id":"test_identity_model","version":"1.00"},"metadata_manifest_cid":"QmSKJWWMwdZ1dvYUo9nhv3jATAiNtdsqyWpyQHqHL4RdGg","model_content":{"content":{"model":"QmcLNqhhS8w5mapFr593Qx6DKj2itt3FPXL4kqPTAuWhcx"},"manifest":{"created_at":"2024-07-31T21:35:03.266643","model_cid":"QmcLNqhhS8w5mapFr593Qx6DKj2itt3FPXL4kqPTAuWhcx","model_id":"test_identity_model","version":"1.00"}}}
 ```
 
 4. Download the model using query parameters:
 ```                                                                                                       
-❯ curl -X GET "http://localhost:5002/download_model?model_id=test_identity_model&version=1.00" \
+curl -X GET "http://localhost:5002/download_model?model_id=test_identity_model&version=1.00" \
      --output downloaded_test_model_query.onnx
+```
+```
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
 100    98  100    98    0     0   5802      0 --:--:-- --:--:-- --:--:--  6125
@@ -89,8 +97,10 @@ To test the ModelRepository functionality, you can use the following curl comman
 
 5. Download the model using path parameters:
 ```
-❯ curl -X GET http://localhost:5002/download_model/test_identity_model/1.00 \
+curl -X GET http://localhost:5002/download_model/test_identity_model/1.00 \
      --output downloaded_test_model_path.onnx
+```
+```
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
 100    98  100    98    0     0   4430      0 --:--:-- --:--:-- --:--:--  4454
@@ -98,34 +108,44 @@ To test the ModelRepository functionality, you can use the following curl comman
 
 6. Get the entire model repository metadata:
 ```
-❯ curl -X GET http://localhost:5002/model_repo_metadata
+curl -X GET http://localhost:5002/model_repo_metadata
+```
+```
 {"models":{"test_identity_model":{"latest_version":"1.00","versions":{"1.00":"QmSKJWWMwdZ1dvYUo9nhv3jATAiNtdsqyWpyQHqHL4RdGg"}}},"version":"1.0"}
 ```
 
 7. Get model info for a non-existent model (should return an error):
 ```
-❯ curl -X GET http://localhost:5002/model_info/non_existent_model/1.00
+curl -X GET http://localhost:5002/model_info/non_existent_model/1.00
+```
+```
 {"error":null,"message":"No manifest found for non_existent_model version 1.00"}
 ```
 
 8. Upload a new version of the model:
 ```
-❯ curl -X POST -H "Content-Type: multipart/form-data" \
+curl -X POST -H "Content-Type: multipart/form-data" \
      -F "file=@tests/mock_onnx/test_model.onnx" \
      -F "model_id=test_identity_model" \
      http://localhost:5002/upload_model
+```
+```
 {"manifest_cid":"QmSMcB7ArKRdUfqaU9kznJrBuhZ9pr3Hd6QKqyqcHRZHry","version":"1.01"}
 ```
 
 9. Validate new version exists:
 ```
-❯ curl -X GET http://localhost:5002/model_repo_metadata               
+curl -X GET http://localhost:5002/model_repo_metadata
+```
+```               
 {"models":{"test_identity_model":{"latest_version":"1.01","versions":{"1.00":"QmSKJWWMwdZ1dvYUo9nhv3jATAiNtdsqyWpyQHqHL4RdGg","1.01":"QmSMcB7ArKRdUfqaU9kznJrBuhZ9pr3Hd6QKqyqcHRZHry"}}},"version":"1.0"}
 ```
 
 10. List all versions of a model:
 ```
-❯ curl -X GET http://localhost:5002/list_versions/test_identity_model
+curl -X GET http://localhost:5002/list_versions/test_identity_model
+```
+```
 {"model_id":"test_identity_model","versions":["1.00","1.01"]}
 ```
 
