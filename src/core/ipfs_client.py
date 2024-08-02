@@ -5,7 +5,7 @@ import traceback
 
 class IPFSClient:
     def __init__(self):
-        ipfs_host = os.environ.get('IPFS_HOST', 'ipfs')
+        ipfs_host = os.environ.get('IPFS_HOST', 'localhost')
         ipfs_port = os.environ.get('IPFS_PORT', '5001')
         self.base_url = f'http://{ipfs_host}:{ipfs_port}/api/v0'
         self.gateway_url = os.environ.get('IPFS_GATEWAY', 'https://ipfs.io').rstrip('/')
