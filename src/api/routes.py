@@ -131,3 +131,12 @@ def route_list_versions(model_id):
     except Exception as e:
         current_app.logger.error(f"Error listing versions: {str(e)}")
         raise InvalidUsage('Error listing versions', status_code=500, payload={'details': str(e)})
+    
+@bp.route('/all_objects', methods=['GET'])
+def route_get_all_objects():
+    try:
+        all_objects = model_repo.get_all_objects()
+        return jsonify(all_objects)
+    except Exception as e:
+        current_app.logger.error(f"Error getting all objects: {str(e)}")
+        raise InvalidUsage('Error getting all objects', status_code=500, payload={'details': str(e)})
