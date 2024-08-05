@@ -135,3 +135,26 @@ class ModelRepository:
             except Exception as e:
                 logging.error(f"Error processing object {obj['Hash']}: {str(e)}")
         return latest_models
+
+    def get_all_objects(self) -> List[Dict]:
+        objects = self.client.list_objects()
+        all_objects = []
+        for obj in objects:
+            try:
+                content = self.client.cat(obj['Hash'])
+                data = json.loads(content) if content else {}
+                all_objects.append({
+                    'cid': obj['Hash'],
+                    'content': data
+                })
+            except json.JSONDecodeError:
+                all_objects.append({
+                    'cid': obj['Hash'],
+                    'content': 'Not a valid JSON'
+                })
+            except Exception as e:
+                all_objects.append({
+                    'cid': obj['Hash'],
+                    'content': f'Error: {str(e)}'
+                })
+        return all_objects
