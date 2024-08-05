@@ -89,36 +89,23 @@ class IPFSClient:
             
             objects = []
             for cid, info in result.get('Keys', {}).items():
-                object_info = {'cid': cid, 'type': info.get('Type', 'Unknown')}
+                object_info = {'Hash': cid, 'Type': info.get('Type', 'Unknown')}
                 try:
                     content = self.cat(cid)
-                    try:
-                        json_content = json.loads(content)
-                        if isinstance(json_content, dict):
-                            if 'model_id' in json_content:
-                                object_info['category'] = 'Model Manifest'
-                                object_info['model_id'] = json_content['model_id']
-                                object_info['version'] = json_content.get('version', 'Unknown')
-                            elif 'models' in json_content:
-                                object_info['category'] = 'Model Index'
-                            else:
-                                object_info['category'] = 'JSON Data'
-                            object_info['content'] = json_content
-                        else:
-                            object_info['category'] = 'JSON Data'
-                            object_info['content'] = json_content
-                    except json.JSONDecodeError:
-                        object_info['category'] = 'Binary Data'
-                        object_info['content'] = f"Binary data, size: {len(content)} bytes"
+                    json_content = json.loads(content)
+                    if 'model_id' in json_content:
+                        object_info['model_id'] = json_content['model_id']
+                        object_info['version'] = json_content.get('version', 'Unknown')
+                    object_info['Content'] = json_content
+                except json.JSONDecodeError:
+                    object_info['Content'] = "Not a valid JSON"
                 except Exception as e:
-                    object_info['category'] = 'Error'
-                    object_info['content'] = f"Error retrieving content: {str(e)}"
+                    object_info['Content'] = f"Error retrieving content: {str(e)}"
                 objects.append(object_info)
             
             print(f"Successfully listed {len(objects)} pinned objects from IPFS")
             for obj in objects:
-                print(f"CID: {obj['cid']}, Type: {obj['type']}, Category: {obj['category']}, "
-                      f"Model ID: {obj.get('model_id', 'N/A')}, Version: {obj.get('version', 'N/A')}")
+                print(f"CID: {obj['Hash']}, Type: {obj['Type']}, Model ID: {obj.get('model_id', 'N/A')}, Version: {obj.get('version', 'N/A')}")
             return objects
         except Exception as e:
             print(f"Error listing objects from IPFS: {str(e)}")
