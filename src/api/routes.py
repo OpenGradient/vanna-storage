@@ -75,25 +75,6 @@ def route_download_model(model_id=None, version=None):
         current_app.logger.error(f"Error downloading model: {str(e)}")
         raise InvalidUsage('Error downloading model', status_code=500, payload={'details': str(e)})
 
-@bp.route('/model_metadata/<model_id>', methods=['GET'])
-def route_get_model_metadata(model_id):
-    try:
-        latest_version = model_repo.get_latest_version(model_id)
-        model_info = model_repo.get_model_info(model_id, latest_version)
-        return jsonify(model_info)
-    except Exception as e:
-        current_app.logger.error(f"Error getting model metadata: {str(e)}")
-        raise InvalidUsage('Error getting model metadata', status_code=500, payload={'details': str(e)})
-
-@bp.route('/model_info/<model_id>/<version>', methods=['GET'])
-def route_get_model_info(model_id, version):
-    try:
-        model_info = model_repo.get_model_info(model_id, version)
-        return jsonify(model_info)
-    except Exception as e:
-        current_app.logger.error(f"Error getting model info: {str(e)}")
-        raise InvalidUsage('Error getting model info', status_code=500, payload={'details': str(e)})
-
 @bp.route('/list_versions/<model_id>', methods=['GET'])
 def route_list_versions(model_id):
     try:
@@ -121,3 +102,15 @@ def route_get_all_objects():
     except Exception as e:
         current_app.logger.error(f"Error getting all objects: {str(e)}")
         raise InvalidUsage('Error getting all objects', status_code=500, payload={'details': str(e)})
+
+@bp.route('/model_info/<model_id>', methods=['GET'])
+@bp.route('/model_info/<model_id>/<version>', methods=['GET'])
+def route_get_model_info(model_id, version=None):
+    try:
+        if version is None:
+            version = model_repo.get_latest_version(model_id)
+        model_info = model_repo.get_model_info(model_id, version)
+        return jsonify(model_info)
+    except Exception as e:
+        current_app.logger.error(f"Error getting model info: {str(e)}")
+        raise InvalidUsage('Error getting model info', status_code=500, payload={'details': str(e)})

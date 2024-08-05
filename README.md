@@ -128,7 +128,15 @@ curl -X GET http://localhost:5002/model_info/test_identity_model/1.07
 {"created_at":"2024-08-05T19:17:19.031251","model_file_cid":"QmcLNqhhS8w5mapFr593Qx6DKj2itt3FPXL4kqPTAuWhcx","model_file_name":"test_model.onnx","model_file_type":"onnx","model_id":"test_identity_model","version":"1.07"}
 ```
 
-5. List versions of a model:
+5. Get latest model info:
+```
+curl -X GET http://localhost:5002/model_info/test_identity_model
+```
+```
+{"created_at":"2024-08-05T19:17:19.031251","model_file_cid":"QmcLNqhhS8w5mapFr593Qx6DKj2itt3FPXL4kqPTAuWhcx","model_file_name":"test_model.onnx","model_file_type":"onnx","model_id":"test_identity_model","version":"1.07"}
+```
+
+6. List versions of a model:
 ```
 curl -X GET http://localhost:5002/list_versions/test_identity_model
 ```
@@ -136,13 +144,6 @@ curl -X GET http://localhost:5002/list_versions/test_identity_model
 {"model_id":"test_identity_model","versions":["1.00","1.01","1.02","1.03","1.04","1.05","1.06","1.07"]}
 ```
 
-6. Get model metadata:
-```
-curl -X GET http://localhost:5002/model_metadata/test_identity_model
-```
-```
-{"created_at":"2024-08-05T19:17:19.031251","model_file_cid":"QmcLNqhhS8w5mapFr593Qx6DKj2itt3FPXL4kqPTAuWhcx","model_file_name":"test_model.onnx","model_file_type":"onnx","model_id":"test_identity_model","version":"1.07"}
-```
 
 7. Get all latest models:
 ```
