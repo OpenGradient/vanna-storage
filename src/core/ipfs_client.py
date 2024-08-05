@@ -94,15 +94,19 @@ class IPFSClient:
                     content = self.cat(cid)
                     try:
                         json_content = json.loads(content)
-                        if 'model_id' in json_content:
-                            object_info['category'] = 'Model Manifest'
-                            object_info['model_id'] = json_content['model_id']
-                            object_info['version'] = json_content.get('version', 'Unknown')
-                        elif 'models' in json_content:
-                            object_info['category'] = 'Model Index'
+                        if isinstance(json_content, dict):
+                            if 'model_id' in json_content:
+                                object_info['category'] = 'Model Manifest'
+                                object_info['model_id'] = json_content['model_id']
+                                object_info['version'] = json_content.get('version', 'Unknown')
+                            elif 'models' in json_content:
+                                object_info['category'] = 'Model Index'
+                            else:
+                                object_info['category'] = 'JSON Data'
+                            object_info['content'] = json_content
                         else:
                             object_info['category'] = 'JSON Data'
-                        object_info['content'] = json_content
+                            object_info['content'] = json_content
                     except json.JSONDecodeError:
                         object_info['category'] = 'Binary Data'
                         object_info['content'] = f"Binary data, size: {len(content)} bytes"
