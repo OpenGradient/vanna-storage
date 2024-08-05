@@ -42,11 +42,13 @@ class ModelRepository:
         versions = self.list_versions(model_id)
         if not versions:
             return "1.00"
-        highest_version = max(versions, key=lambda v: parse.parse(v))
-        major, minor = map(int, highest_version.split('.'))
-        if minor == 99:
-            return f"{major + 1}.00"
-        return f"{major}.{minor + 1:02d}"
+        latest_version = max(versions, key=lambda v: [int(x) for x in v.split('.')])
+        major, minor = map(int, latest_version.split('.'))
+        new_minor = minor + 1
+        if new_minor > 99:
+            major += 1
+            new_minor = 0
+        return f"{major:d}.{new_minor:02d}"
 
     def download_model(self, model_id: str, version: str) -> bytes:
         try:

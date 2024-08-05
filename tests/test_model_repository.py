@@ -30,26 +30,32 @@ class TestModelRepository(TestCase):
     def tearDownClass(cls):
         cls.mock_ipfs_patcher.stop()
 
+    def test_upload_model(self):
+        mock_file = MagicMock()
+        mock_file.filename = 'test_model.onnx'
+        mock_file.read.return_value = b'mock_model_data'
+        self.mock_ipfs_client.add_bytes.return_value = 'mock_model_cid'
+        self.mock_ipfs_client.add_json.return_value = 'mock_manifest_cid'
+        self.mock_ipfs_client.list_objects.return_value = []
+
+        result, new_version = self.repo.upload_model('test_model', mock_file)
+        self.assertEqual(result, 'mock_manifest_cid')
+        self.assertEqual(new_version, '1.00')
+
+        self.mock_ipfs_client.add_bytes.assert_called_with(b'mock_model_data')
+        self.mock_ipfs_client.add_json.assert_called_once()
+
     def test_download_model(self):
         mock_model_data = b'test_model_data'
         mock_manifest = {
             'model_id': 'test_model',
             'version': '1.00',
-            'model_cid': 'mock_model_cid'
+            'model_file_cid': 'mock_model_cid'
         }
 
-        mock_metadata = {
-            'models': {
-                'test_model': {
-                    'versions': {'1.00': 'mock_manifest_cid'},
-                    'latest_version': '1.00'
-                }
-            }
-        }
-
-        self.repo.get_metadata = MagicMock(return_value=mock_metadata)
-        self.mock_ipfs_client.get_json.side_effect = [mock_manifest]
+        self.mock_ipfs_client.get_json.return_value = mock_manifest
         self.mock_ipfs_client.cat.return_value = mock_model_data
+        self.repo.get_manifest_cid = MagicMock(return_value='mock_manifest_cid')
 
         result = self.repo.download_model('test_model', '1.00')
         
@@ -57,75 +63,44 @@ class TestModelRepository(TestCase):
         self.mock_ipfs_client.get_json.assert_called_once_with('mock_manifest_cid')
         self.mock_ipfs_client.cat.assert_called_once_with('mock_model_cid')
 
-    def test_get_metadata(self):
-        # Mock the initial metadata
-        initial_metadata = {
-            'models': {
-                'test_model': {
-                    'versions': {
-                        '1.00': 'mock_manifest_cid'
-                    },
-                    'latest_version': '1.00'
-                }
-            }
-        }
-        
-        # Mock the get_metadata method to return the initial metadata
-        self.repo.get_metadata = MagicMock(return_value=initial_metadata)
+    def test_list_versions(self):
+        mock_objects = [
+            {'Hash': 'cid1'},
+            {'Hash': 'cid2'},
+            {'Hash': 'cid3'}
+        ]
+        mock_manifests = [
+            {'model_id': 'test_model', 'version': '1.00'},
+            {'model_id': 'test_model', 'version': '1.01'},
+            {'model_id': 'other_model', 'version': '1.00'}
+        ]
 
-        result = self.repo.get_metadata()
-        
-        expected_metadata = {
-            'models': {
-                'test_model': {
-                    'versions': {
-                        '1.00': 'mock_manifest_cid'
-                    },
-                    'latest_version': '1.00'
-                }
-            }
-        }
-        
-        print("Actual result:")
-        print(json.dumps(result, indent=2))
-        print("\nExpected result:")
-        print(json.dumps(expected_metadata, indent=2))
-        
-        self.assertEqual(result, expected_metadata)
-        self.repo.get_metadata.assert_called_once()
-    
-    def test_upload_model(self):
-        mock_model_data = b'mock_model_data'
-        initial_metadata = {
-            'models': {},
-            'version': '1.0'
-        }
+        self.mock_ipfs_client.list_objects.return_value = mock_objects
+        self.mock_ipfs_client.cat.side_effect = [json.dumps(manifest) for manifest in mock_manifests]
 
-        def mock_get_metadata():
-            return initial_metadata
+        versions = self.repo.list_versions('test_model')
+        self.assertEqual(set(versions), {'1.00', '1.01'})
 
-        self.repo.get_metadata = MagicMock(side_effect=mock_get_metadata)
-        self.mock_ipfs_client.add_bytes.return_value = 'mock_model_cid'
-        self.mock_ipfs_client.add_json.side_effect = ['mock_manifest_cid', 'mock_new_root_cid', 'mock_manifest_cid_2', 'mock_new_root_cid_2']
+    def test_get_all_latest_models(self):
+        mock_objects = [
+            {'Hash': 'cid1'},
+            {'Hash': 'cid2'},
+            {'Hash': 'cid3'}
+        ]
+        mock_manifests = [
+            {'model_id': 'model1', 'version': '1.00'},
+            {'model_id': 'model1', 'version': '1.01'},
+            {'model_id': 'model2', 'version': '1.00'}
+        ]
 
-        # First upload
-        result1, new_version1 = self.repo.upload_model('test_model', mock_model_data)
-        self.assertEqual(result1, 'mock_manifest_cid')
-        self.assertEqual(new_version1, '1.00')
+        self.mock_ipfs_client.list_objects.return_value = mock_objects
+        self.mock_ipfs_client.cat.side_effect = [json.dumps(manifest) for manifest in mock_manifests]
 
-        # Update mock metadata for second upload
-        initial_metadata['models']['test_model'] = {
-            'versions': {'1.00': 'old_manifest_cid'},
-            'latest_version': '1.00'
-        }
-
-        # Second upload
-        result2, new_version2 = self.repo.upload_model('test_model', mock_model_data)
-        self.assertEqual(result2, 'mock_manifest_cid_2')
-        self.assertEqual(new_version2, '1.01')
-
-        self.mock_ipfs_client.add_bytes.assert_called_with(mock_model_data)
-        self.assertEqual(self.mock_ipfs_client.add_json.call_count, 4)  # Called twice for each upload (manifest and metadata)
+        latest_models = self.repo.get_all_latest_models()
+        self.assertEqual(latest_models, {
+            'model1': {'version': '1.01', 'cid': 'cid2'},
+            'model2': {'version': '1.00', 'cid': 'cid3'}
+        })
 
 if __name__ == '__main__':
     unittest.main()
