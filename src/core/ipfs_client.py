@@ -81,41 +81,31 @@ class IPFSClient:
             raise
 
     def list_objects(self):
-        print("Attempting to list all objects in IPFS")
+        print("Attempting to list all pinned objects in IPFS")
         try:
             response = self.session.post(f'{self.base_url}/pin/ls')
             response.raise_for_status()
-            print(f"Raw response from IPFS: {response.text}")
+            result = response.json()
             
             objects = []
-            for line in response.iter_lines():
-                if line:
-                    print(f"Processing line: {line}")
-                    try:
-                        decoded_line = line.decode('utf-8')
-                        print(f"Decoded line: {decoded_line}")
-                        obj = json.loads(decoded_line)
-                        if isinstance(obj, dict) and 'Keys' in obj:
-                            for key, value in obj['Keys'].items():
-                                objects.append({'Hash': key, 'Type': value.get('Type', 'Unknown')})
-                                print(f"Added object with Hash: {key}, Type: {value.get('Type', 'Unknown')}")
-                        elif 'Ref' in obj:
-                            objects.append({'Hash': obj['Ref']})
-                            print(f"Added object with Ref: {obj['Ref']}")
-                        else:
-                            objects.append({'Hash': decoded_line.strip()})
-                            print(f"Added object with Hash: {decoded_line.strip()}")
-                    except UnicodeDecodeError:
-                        hex_line = line.hex()
-                        print(f"Failed to decode, using hex: {hex_line}")
-                        objects.append({'Hash': hex_line})
-                    except json.JSONDecodeError:
-                        fallback_line = line.decode('utf-8', errors='replace').strip()
-                        print(f"Failed to parse JSON, using fallback: {fallback_line}")
-                        objects.append({'Hash': fallback_line})
+            for cid, info in result.get('Keys', {}).items():
+                object_info = {'Hash': cid, 'Type': info.get('Type', 'Unknown')}
+                try:
+                    content = self.cat(cid)
+                    json_content = json.loads(content)
+                    if 'model_id' in json_content:
+                        object_info['model_id'] = json_content['model_id']
+                        object_info['version'] = json_content.get('version', 'Unknown')
+                    object_info['Content'] = json_content
+                except json.JSONDecodeError:
+                    object_info['Content'] = "Not a valid JSON"
+                except Exception as e:
+                    object_info['Content'] = f"Error retrieving content: {str(e)}"
+                objects.append(object_info)
             
-            print(f"Successfully listed {len(objects)} objects from IPFS")
-            print(f"Objects: {objects}")
+            print(f"Successfully listed {len(objects)} pinned objects from IPFS")
+            for obj in objects:
+                print(f"CID: {obj['Hash']}, Type: {obj['Type']}, Model ID: {obj.get('model_id', 'N/A')}, Version: {obj.get('version', 'N/A')}")
             return objects
         except Exception as e:
             print(f"Error listing objects from IPFS: {str(e)}")
