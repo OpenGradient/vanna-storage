@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, Response, current_app
 from core.model_repository import ModelRepository
 from core.ipfs_client import IPFSClient
-import re
+from packaging import version as parse
+
 bp = Blueprint('api', __name__)
 
 class InvalidUsage(Exception):
@@ -38,18 +39,21 @@ model_repo = ModelRepository()
 
 @bp.route('/upload_model', methods=['POST'])
 def route_upload_model():
+    current_app.logger.info("Received upload_model request")
     file = request.files.get('file')
     model_id = request.form.get('model_id')
     
     if not file or not model_id:
+        current_app.logger.error("Missing file or model_id")
         raise InvalidUsage('Missing file or model_id', status_code=400)
     
     try:
-        serialized_model = file.read()
-        manifest_cid, new_version = model_repo.upload_model(model_id, serialized_model)
+        current_app.logger.info(f"Uploading model with ID: {model_id}")
+        manifest_cid, new_version = model_repo.upload_model(model_id, file)
+        current_app.logger.info(f"Model uploaded successfully. CID: {manifest_cid}, Version: {new_version}")
         return jsonify({'manifest_cid': manifest_cid, 'version': new_version})
     except Exception as e:
-        current_app.logger.error(f"Error uploading model: {str(e)}")
+        current_app.logger.error(f"Error uploading model: {str(e)}", exc_info=True)
         raise InvalidUsage('Error uploading model', status_code=500, payload={'details': str(e)})
 
 @bp.route('/download_model', methods=['GET'])
@@ -71,24 +75,12 @@ def route_download_model(model_id=None, version=None):
         current_app.logger.error(f"Error downloading model: {str(e)}")
         raise InvalidUsage('Error downloading model', status_code=500, payload={'details': str(e)})
 
-@bp.route('/model_repo_metadata', methods=['GET'])
-def route_get_metadata():
-    try:
-        metadata = model_repo.get_metadata()
-        return jsonify(metadata)
-    except Exception as e:
-        current_app.logger.error(f"Error getting metadata: {str(e)}")
-        raise InvalidUsage('Error getting metadata', status_code=500, payload={'details': str(e)})
-
 @bp.route('/model_metadata/<model_id>', methods=['GET'])
 def route_get_model_metadata(model_id):
     try:
-        metadata = model_repo.get_metadata()
-        if model_id not in metadata['models']:
-            raise InvalidUsage(f"Model {model_id} not found", status_code=404)
-        return jsonify(metadata['models'][model_id])
-    except InvalidUsage:
-        raise
+        latest_version = model_repo.get_latest_version(model_id)
+        model_info = model_repo.get_model_info(model_id, latest_version)
+        return jsonify(model_info)
     except Exception as e:
         current_app.logger.error(f"Error getting model metadata: {str(e)}")
         raise InvalidUsage('Error getting model metadata', status_code=500, payload={'details': str(e)})
@@ -96,29 +88,8 @@ def route_get_model_metadata(model_id):
 @bp.route('/model_info/<model_id>/<version>', methods=['GET'])
 def route_get_model_info(model_id, version):
     try:
-        client = IPFSClient()
-        metadata = model_repo.get_metadata()
-        
-        # Enforce the x.yz version format
-        version_match = re.match(r'^\d+\.\d{2}$', version)  # Match major and exactly two digits for minor
-        if not version_match:
-            raise InvalidUsage(f"Invalid version format: {version}. Must be in the form 'x.yz where x, y, and z are integers.'", status_code=400)
-
-        if model_id not in metadata['models'] or version not in metadata['models'][model_id]['versions']:
-            raise InvalidUsage(f"No manifest found for {model_id} version {version}", status_code=404)
-        
-        manifest_cid = metadata['models'][model_id]['versions'][version]
-        manifest = client.get_json(manifest_cid)
-        
-        model_content = model_repo.get_model_content(model_id, version)
-        
-        return jsonify({
-            "metadata_manifest_cid": manifest_cid,
-            "manifest_content": manifest,
-            "model_content": model_content
-        })
-    except InvalidUsage:
-        raise
+        model_info = model_repo.get_model_info(model_id, version)
+        return jsonify(model_info)
     except Exception as e:
         current_app.logger.error(f"Error getting model info: {str(e)}")
         raise InvalidUsage('Error getting model info', status_code=500, payload={'details': str(e)})
@@ -127,7 +98,17 @@ def route_get_model_info(model_id, version):
 def route_list_versions(model_id):
     try:
         versions = model_repo.list_versions(model_id)
-        return jsonify({'model_id': model_id, 'versions': versions})
+        sorted_versions = sorted(versions, key=lambda v: parse.parse(v))
+        return jsonify({'model_id': model_id, 'versions': sorted_versions})
     except Exception as e:
         current_app.logger.error(f"Error listing versions: {str(e)}")
         raise InvalidUsage('Error listing versions', status_code=500, payload={'details': str(e)})
+
+@bp.route('/all_latest_models', methods=['GET'])
+def route_get_all_latest_models():
+    try:
+        latest_models = model_repo.get_all_latest_models()
+        return jsonify(latest_models)
+    except Exception as e:
+        current_app.logger.error(f"Error getting all latest models: {str(e)}")
+        raise InvalidUsage('Error getting all latest models', status_code=500, payload={'details': str(e)})
