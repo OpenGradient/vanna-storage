@@ -1,6 +1,7 @@
 import json
 import logging
 from core.ipfs_client import IPFSClient
+from core.model_metadata import ModelMetadata
 from packaging import version as parse
 from datetime import datetime
 from typing import List, Dict
@@ -11,7 +12,7 @@ class ModelRepository:
     def __init__(self):
         self.client = IPFSClient()
 
-    def upload_model(self, model_id: str, file) -> tuple:
+    def upload_model(self, model_id: str, file, metadata: dict) -> tuple:
         try:
             file_name = secure_filename(file.filename)
             file_type = os.path.splitext(file_name)[1][1:].lower()
@@ -21,16 +22,18 @@ class ModelRepository:
             
             new_version = self._generate_new_version(model_id)
             
-            manifest = {
-                "model_id": model_id,
-                "version": new_version,
-                "created_at": datetime.now().isoformat(),
-                "model_file_cid": model_file_cid,
-                "model_file_type": file_type,
-                "model_file_name": file_name
-            }
+            metadata_obj = ModelMetadata(
+                name=metadata.get('name', model_id),
+                version=new_version,
+                model_id=model_id,
+                file_name=file_name,
+                file_type=file_type,
+                file_cid=model_file_cid,
+                created_at=datetime.now().isoformat(),
+                **{k: v for k, v in metadata.items() if k in ModelMetadata.__annotations__}
+            )
             
-            manifest_cid = self.client.add_json(manifest)
+            manifest_cid = self.client.add_json(metadata_obj.to_dict())
             
             logging.debug(f"Uploaded model {model_id} version {new_version} with manifest CID: {manifest_cid}")
             return manifest_cid, new_version
@@ -158,3 +161,22 @@ class ModelRepository:
                     'content': f'Error: {str(e)}'
                 })
         return all_objects
+
+    def update_model_metadata(self, model_id: str, version: str, new_metadata: dict) -> dict:
+        try:
+            manifest_cid = self.get_manifest_cid(model_id, version)
+            manifest = self.client.get_json(manifest_cid)
+            
+            if not manifest or 'metadata' not in manifest:
+                raise ValueError(f"Invalid manifest for {model_id} v{version}")
+            
+            current_metadata = ModelMetadata.from_dict(manifest['metadata'])
+            updated_metadata = ModelMetadata.from_dict({**current_metadata.to_dict(), **new_metadata})
+            
+            manifest['metadata'] = updated_metadata.to_dict()
+            new_manifest_cid = self.client.add_json(manifest)
+            
+            return {'manifest_cid': new_manifest_cid, 'metadata': updated_metadata.to_dict()}
+        except Exception as e:
+            logging.error(f"Error in update_model_metadata: {str(e)}", exc_info=True)
+            raise
