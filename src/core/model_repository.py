@@ -171,7 +171,11 @@ class ModelRepository:
                 raise ValueError(f"Invalid manifest for {model_id} v{version}")
             
             # Update the manifest with new metadata
-            manifest.update(new_metadata)
+            for key, value in new_metadata.items():
+                if value is None:
+                    manifest.pop(key, None)
+                else:
+                    manifest[key] = value
             
             # Create a new ModelMetadata object with updated information
             updated_metadata = ModelMetadata.from_dict(manifest)

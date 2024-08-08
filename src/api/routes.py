@@ -131,15 +131,6 @@ def route_get_model_info(model_id, version=None):
         current_app.logger.error(f"Error getting model info: {str(e)}")
         raise InvalidUsage('Error getting model info', status_code=500, payload={'details': str(e)})
 
-@bp.route('/model_metadata/<model_id>/<version>', methods=['GET'])
-def route_get_model_metadata(model_id, version):
-    try:
-        model_info = model_repo.get_model_info(model_id, version)
-        return jsonify(model_info.get('metadata', {}))
-    except Exception as e:
-        current_app.logger.error(f"Error getting model metadata: {str(e)}")
-        raise InvalidUsage('Error getting model metadata', status_code=500, payload={'details': str(e)})
-
 @bp.route('/update_model_metadata/<model_id>/<version>', methods=['PUT'])
 def route_update_model_metadata(model_id, version):
     try:
@@ -147,23 +138,13 @@ def route_update_model_metadata(model_id, version):
         print(f"Received update request for model {model_id} version {version}")
         print(f"New metadata: {new_metadata}")
 
-        current_info = model_repo.get_model_info(model_id, version)
-        print(f"Current info: {current_info}")
-
-        # Update only the fields provided in new_metadata that exist in current_info
-        updated_info = {**current_info, **{k: v for k, v in new_metadata.items() if k in current_info}}
-        print(f"Updated info before sending to update_model_metadata: {updated_info}")
-
-        updated_info = model_repo.update_model_metadata(model_id, version, updated_info)
+        updated_info = model_repo.update_model_metadata(model_id, version, new_metadata)
         print(f"Update successful. Updated info: {updated_info}")
 
-        return jsonify(updated_info)
+        return jsonify(updated_info['metadata'])
     except ValueError as ve:
         error_message = str(ve)
         print(f"ValueError: {error_message}")
-        if "Invalid manifest" in error_message:
-            print(f"Current manifest structure: {current_info}")
-            print("Expected manifest structure: ModelMetadata fields")
         return jsonify({"error": "Invalid manifest", "message": error_message}), 400
     except KeyError as ke:
         error_message = f"Missing key in manifest: {str(ke)}"
