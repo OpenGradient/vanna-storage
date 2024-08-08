@@ -25,7 +25,7 @@ class ModelMetadata:
 
     @property
     def name(self):
-        return f"{self.version}_{self.model_id}.{self.file_type}"
+        return f"{self.version}_{self.model_id}"
 
     @property
     def version(self):
