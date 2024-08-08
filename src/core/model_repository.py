@@ -20,38 +20,38 @@ class ModelRepository:
             serialized_model = file.read()
             model_file_cid = self.client.add_bytes(serialized_model)
             
-            new_version = self._generate_new_version(model_id)
+            major_version, minor_version = self._generate_new_version(model_id)
             
             metadata_obj = ModelMetadata(
-                name=metadata.get('name', model_id),
-                version=new_version,
                 model_id=model_id,
                 file_name=file_name,
                 file_type=file_type,
                 file_cid=model_file_cid,
                 created_at=datetime.now().isoformat(),
-                **{k: v for k, v in metadata.items() if k in ModelMetadata.__annotations__}
+                major_version=major_version,
+                minor_version=minor_version,
+                **metadata
             )
             
             manifest_cid = self.client.add_json(metadata_obj.to_dict())
             
-            logging.debug(f"Uploaded model {model_id} version {new_version} with manifest CID: {manifest_cid}")
-            return manifest_cid, new_version
+            logging.debug(f"Uploaded model {model_id} version {metadata_obj.version} with manifest CID: {manifest_cid}")
+            return manifest_cid, metadata_obj.version
         except Exception as e:
             logging.error(f"Error uploading model: {str(e)}")
             raise
 
-    def _generate_new_version(self, model_id: str) -> str:
+    def _generate_new_version(self, model_id: str) -> tuple:
         versions = self.list_versions(model_id)
         if not versions:
-            return "1.00"
+            return 1, 0
         latest_version = max(versions, key=lambda v: [int(x) for x in v.split('.')])
         major, minor = map(int, latest_version.split('.'))
-        new_minor = minor + 1
-        if new_minor > 99:
+        minor += 1
+        if minor > 99:
             major += 1
-            new_minor = 0
-        return f"{major:d}.{new_minor:02d}"
+            minor = 0
+        return major, minor
 
     def download_model(self, model_id: str, version: str) -> bytes:
         try:

@@ -3,13 +3,13 @@ from typing import List, Optional, Dict, Any
 
 @dataclass
 class ModelMetadata:
-    name: str
-    version: str
     model_id: str
     file_name: str
     file_type: str
     file_cid: str
     created_at: str
+    major_version: int
+    minor_version: int
     description: Optional[str] = None
     authors: List[str] = field(default_factory=list)
     license: Optional[str] = None
@@ -21,9 +21,21 @@ class ModelMetadata:
     hyperparameters: Dict[str, Any] = field(default_factory=dict)
     input_shape: Optional[List[int]] = None
     output_shape: Optional[List[int]] = None
+    model_type: Optional[str] = None
+
+    @property
+    def name(self):
+        return f"{self.version}_{self.model_id}.{self.file_type}"
+
+    @property
+    def version(self):
+        return f"{self.major_version}.{self.minor_version:02d}"
 
     def to_dict(self):
-        return {k: v for k, v in asdict(self).items() if v is not None}
+        data = asdict(self)
+        data['name'] = self.name
+        data['version'] = self.version
+        return {k: v for k, v in data.items() if v is not None}
 
     @classmethod
     def from_dict(cls, data):
