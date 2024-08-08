@@ -58,10 +58,10 @@ class ModelRepository:
             manifest_cid = self.get_manifest_cid(model_id, version)
             manifest = self.client.get_json(manifest_cid)
             
-            if not manifest or 'model_file_cid' not in manifest:
+            if not manifest or 'file_cid' not in manifest:
                 raise ValueError(f"Invalid manifest for {model_id} v{version}")
             
-            model_data = self.client.cat(manifest['model_file_cid'])
+            model_data = self.client.cat(manifest['file_cid'])
             if not model_data:
                 raise ValueError(f"Failed to retrieve model data for {model_id} v{version}")
             
@@ -167,16 +167,20 @@ class ModelRepository:
             manifest_cid = self.get_manifest_cid(model_id, version)
             manifest = self.client.get_json(manifest_cid)
             
-            if not manifest or 'metadata' not in manifest:
+            if not manifest:
                 raise ValueError(f"Invalid manifest for {model_id} v{version}")
             
-            current_metadata = ModelMetadata.from_dict(manifest['metadata'])
-            updated_metadata = ModelMetadata.from_dict({**current_metadata.to_dict(), **new_metadata})
+            # Update the manifest with new metadata
+            manifest.update(new_metadata)
             
-            manifest['metadata'] = updated_metadata.to_dict()
-            new_manifest_cid = self.client.add_json(manifest)
+            # Create a new ModelMetadata object with updated information
+            updated_metadata = ModelMetadata.from_dict(manifest)
             
-            return {'manifest_cid': new_manifest_cid, 'metadata': updated_metadata.to_dict()}
+            # Convert back to dict and add to IPFS
+            updated_manifest = updated_metadata.to_dict()
+            new_manifest_cid = self.client.add_json(updated_manifest)
+            
+            return {'manifest_cid': new_manifest_cid, 'metadata': updated_manifest}
         except Exception as e:
             logging.error(f"Error in update_model_metadata: {str(e)}", exc_info=True)
             raise

@@ -92,6 +92,15 @@ def route_list_versions(model_id):
         current_app.logger.error(f"Error listing versions: {str(e)}")
         raise InvalidUsage('Error listing versions', status_code=500, payload={'details': str(e)})
 
+@bp.route('/latest_version/<model_id>', methods=['GET'])
+def route_get_latest_version(model_id):
+    try:
+        latest_version = model_repo.get_latest_version(model_id)
+        return jsonify({'model_id': model_id, 'latest_version': latest_version})
+    except Exception as e:
+        current_app.logger.error(f"Error getting latest version: {str(e)}")
+        raise InvalidUsage('Error getting latest version', status_code=500, payload={'details': str(e)})
+
 @bp.route('/all_latest_models', methods=['GET'])
 def route_get_all_latest_models():
     try:
@@ -135,8 +144,33 @@ def route_get_model_metadata(model_id, version):
 def route_update_model_metadata(model_id, version):
     try:
         new_metadata = request.json
-        updated_info = model_repo.update_model_metadata(model_id, version, new_metadata)
+        print(f"Received update request for model {model_id} version {version}")
+        print(f"New metadata: {new_metadata}")
+
+        current_info = model_repo.get_model_info(model_id, version)
+        print(f"Current info: {current_info}")
+
+        # Update only the fields provided in new_metadata that exist in current_info
+        updated_info = {**current_info, **{k: v for k, v in new_metadata.items() if k in current_info}}
+        print(f"Updated info before sending to update_model_metadata: {updated_info}")
+
+        updated_info = model_repo.update_model_metadata(model_id, version, updated_info)
+        print(f"Update successful. Updated info: {updated_info}")
+
         return jsonify(updated_info)
+    except ValueError as ve:
+        error_message = str(ve)
+        print(f"ValueError: {error_message}")
+        if "Invalid manifest" in error_message:
+            print(f"Current manifest structure: {current_info}")
+            print("Expected manifest structure: ModelMetadata fields")
+        return jsonify({"error": "Invalid manifest", "message": error_message}), 400
+    except KeyError as ke:
+        error_message = f"Missing key in manifest: {str(ke)}"
+        print(error_message)
+        return jsonify({"error": "Invalid manifest structure", "message": error_message}), 400
     except Exception as e:
-        current_app.logger.error(f"Error updating model metadata: {str(e)}")
-        raise InvalidUsage('Error updating model metadata', status_code=500, payload={'details': str(e)})
+        print(f"Unexpected error updating model metadata: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Internal server error", "message": str(e)}), 500
