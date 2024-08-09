@@ -2,7 +2,7 @@ from dataclasses import dataclass, asdict, field
 from typing import List, Optional, Dict, Any
 
 @dataclass
-class ModelMetadata:
+class ModelVersionMetadata:
     model_id: str
     file_name: str
     file_type: str
