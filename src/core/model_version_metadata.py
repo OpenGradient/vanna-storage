@@ -10,18 +10,6 @@ class ModelVersionMetadata:
     created_at: str
     major_version: int
     minor_version: int
-    description: Optional[str] = None
-    authors: List[str] = field(default_factory=list)
-    license: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
-    framework: Optional[str] = None
-    task_type: Optional[str] = None
-    dataset: Optional[str] = None
-    metrics: Dict[str, float] = field(default_factory=dict)
-    hyperparameters: Dict[str, Any] = field(default_factory=dict)
-    input_shape: Optional[List[int]] = None
-    output_shape: Optional[List[int]] = None
-    model_type: Optional[str] = None
 
     @property
     def name(self):
