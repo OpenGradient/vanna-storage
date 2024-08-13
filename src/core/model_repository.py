@@ -1,7 +1,7 @@
 import json
 import logging
 from core.ipfs_client import IPFSClient
-from src.core.model_version_metadata import ModelVersionMetadata
+from core.model_version_metadata import ModelVersionMetadata
 from packaging import version as parse
 from datetime import datetime
 from typing import Any, List, Dict
