@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 
 @dataclass
 class ModelVersionMetadata:
-    model_id: str
+    model_name: str
     file_name: str
     file_type: str
     file_cid: str
@@ -13,7 +13,7 @@ class ModelVersionMetadata:
 
     @property
     def name(self):
-        return f"{self.version}_{self.model_id}"
+        return f"{self.version}_{self.model_name}"
 
     @property
     def version(self):
