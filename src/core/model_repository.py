@@ -1,12 +1,11 @@
 import json
 import logging
 from core.ipfs_client import IPFSClient
-from core.model_metadata import ModelMetadata
+from src.core.model_version_metadata import ModelVersionMetadata
 from packaging import version as parse
 from datetime import datetime
 from typing import Any, List, Dict
 import os
-from werkzeug.utils import secure_filename
 
 class ModelRepository:
     def __init__(self):
@@ -18,7 +17,7 @@ class ModelRepository:
             major_version, minor_version = self._generate_new_version(model_name)
             logging.info(f"Generated new version: {major_version}.{minor_version}")
             
-            metadata_obj = ModelMetadata(
+            metadata_obj = ModelVersionMetadata(
                 model_name=model_name,
                 created_at=datetime.now().isoformat(),
                 major_version=major_version,
@@ -183,8 +182,8 @@ class ModelRepository:
                 else:
                     manifest[key] = value
             
-            # Create a new ModelMetadata object with updated information
-            updated_metadata = ModelMetadata.from_dict(manifest)
+            # Create a new ModelVersionMetadata object with updated information
+            updated_metadata = ModelVersionMetadata.from_dict(manifest)
             
             # Convert back to dict and add to IPFS
             updated_manifest = updated_metadata.to_dict()

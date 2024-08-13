@@ -2,7 +2,6 @@ from flask import Blueprint, request, jsonify, Response, current_app
 from core.model_repository import ModelRepository
 from core.ipfs_client import IPFSClient
 from packaging import version as parse
-from core.model_metadata import ModelMetadata
 import json
 import io
 import zipfile

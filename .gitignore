@@ -9,6 +9,7 @@ test_model.onnx
 environment.yml
 # C extensions
 *.so
+.DS_Store
 
 # Distribution / packaging
 .Python

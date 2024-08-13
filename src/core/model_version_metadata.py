@@ -1,17 +1,19 @@
 from dataclasses import dataclass, asdict, field
-from typing import List, Dict, Any
+from typing import List, Optional, Dict, Any
 
 @dataclass
-class ModelMetadata:
-    model_name: str
+class ModelVersionMetadata:
+    model_id: str
+    file_name: str
+    file_type: str
+    file_cid: str
     created_at: str
     major_version: int
     minor_version: int
-    files: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     @property
     def name(self):
-        return f"{self.version}_{self.model_name}"
+        return f"{self.version}_{self.model_id}"
 
     @property
     def version(self):
@@ -26,9 +28,3 @@ class ModelMetadata:
     @classmethod
     def from_dict(cls, data):
         return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
-
-    def add_file(self, file_name: str, file_type: str, file_cid: str):
-        self.files[file_name] = {
-            "type": file_type,
-            "cid": file_cid
-        }
