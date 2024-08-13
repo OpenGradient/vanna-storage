@@ -73,22 +73,22 @@ def route_upload_model():
         raise InvalidUsage('Error uploading model', status_code=500, payload={'details': str(e)})
 
 @bp.route('/download_model', methods=['GET'])
-@bp.route('/download_model/<model_id>/<version>', methods=['GET'])
-def route_download_model(model_id=None, version=None):
-    if model_id is None:
-        model_id = request.args.get('model_id')
+@bp.route('/download_model/<model_name>/<version>', methods=['GET'])
+def route_download_model(model_name=None, version=None):
+    if model_name is None:
+        model_name = request.args.get('model_name')
     if version is None:
         version = request.args.get('version')
     
-    if not model_id or not version:
-        raise InvalidUsage('Missing model_id or version', status_code=400)
+    if not model_name or not version:
+        raise InvalidUsage('Missing model_name or version', status_code=400)
     
     try:
-        model_files = model_repo.download_model(model_id, version)
+        model_files = model_repo.download_model(model_name, version)
         if len(model_files) == 1:
             file_name, file_content = next(iter(model_files.items()))
             return Response(file_content, mimetype='application/octet-stream',
-                            headers={'Content-Disposition': f'attachment;filename={version}.{model_id}.{file_name}'})
+                            headers={'Content-Disposition': f'attachment;filename={version}.{model_name}.{file_name}'})
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
@@ -96,26 +96,26 @@ def route_download_model(model_id=None, version=None):
                     zip_file.writestr(file_name, file_content)
             zip_buffer.seek(0)
             return Response(zip_buffer.getvalue(), mimetype='application/zip',
-                            headers={'Content-Disposition': f'attachment;filename={version}.{model_id}.zip'})
+                            headers={'Content-Disposition': f'attachment;filename={version}.{model_name}.zip'})
     except Exception as e:
         current_app.logger.error(f"Error downloading model: {str(e)}")
         raise InvalidUsage('Error downloading model', status_code=500, payload={'details': str(e)})
 
-@bp.route('/list_versions/<model_id>', methods=['GET'])
-def route_list_versions(model_id):
+@bp.route('/list_versions/<model_name>', methods=['GET'])
+def route_list_versions(model_name):
     try:
-        versions = model_repo.list_versions(model_id)
+        versions = model_repo.list_versions(model_name)
         sorted_versions = sorted(versions, key=lambda v: parse.parse(v))
-        return jsonify({'model_id': model_id, 'versions': sorted_versions})
+        return jsonify({'model_name': model_name, 'versions': sorted_versions})
     except Exception as e:
         current_app.logger.error(f"Error listing versions: {str(e)}")
         raise InvalidUsage('Error listing versions', status_code=500, payload={'details': str(e)})
 
-@bp.route('/latest_version/<model_id>', methods=['GET'])
-def route_get_latest_version(model_id):
+@bp.route('/latest_version/<model_name>', methods=['GET'])
+def route_get_latest_version(model_name):
     try:
-        latest_version = model_repo.get_latest_version(model_id)
-        return jsonify({'model_id': model_id, 'latest_version': latest_version})
+        latest_version = model_repo.get_latest_version(model_name)
+        return jsonify({'model_name': model_name, 'latest_version': latest_version})
     except Exception as e:
         current_app.logger.error(f"Error getting latest version: {str(e)}")
         raise InvalidUsage('Error getting latest version', status_code=500, payload={'details': str(e)})
@@ -138,26 +138,26 @@ def route_get_all_objects():
         current_app.logger.error(f"Error getting all objects: {str(e)}")
         raise InvalidUsage('Error getting all objects', status_code=500, payload={'details': str(e)})
 
-@bp.route('/model_info/<model_id>', methods=['GET'])
-@bp.route('/model_info/<model_id>/<version>', methods=['GET'])
-def route_get_model_info(model_id, version=None):
+@bp.route('/model_info/<model_name>', methods=['GET'])
+@bp.route('/model_info/<model_name>/<version>', methods=['GET'])
+def route_get_model_info(model_name, version=None):
     try:
         if version is None:
-            version = model_repo.get_latest_version(model_id)
-        model_info = model_repo.get_model_info(model_id, version)
+            version = model_repo.get_latest_version(model_name)
+        model_info = model_repo.get_model_info(model_name, version)
         return jsonify(model_info)
     except Exception as e:
         current_app.logger.error(f"Error getting model info: {str(e)}")
         raise InvalidUsage('Error getting model info', status_code=500, payload={'details': str(e)})
 
-@bp.route('/update_model_metadata/<model_id>/<version>', methods=['PUT'])
-def route_update_model_metadata(model_id, version):
+@bp.route('/update_model_metadata/<model_name>/<version>', methods=['PUT'])
+def route_update_model_metadata(model_name, version):
     try:
         new_metadata = request.json
-        logging.info(f"Received update request for model {model_id} version {version}")
+        logging.info(f"Received update request for model {model_name} version {version}")
         logging.info(f"New metadata: {new_metadata}")
 
-        updated_info = model_repo.update_model_metadata(model_id, version, new_metadata)
+        updated_info = model_repo.update_model_metadata(model_name, version, new_metadata)
         logging.info(f"Update successful. Updated info: {updated_info}")
 
         return jsonify(updated_info['metadata'])
