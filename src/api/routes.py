@@ -42,18 +42,23 @@ model_repo = ModelRepository()
 @bp.route('/upload_model', methods=['POST'])
 def route_upload_model():
     current_app.logger.info("Received upload_model request")
-    file = request.files.get('file')
-    model_id = request.form.get('model_id')
+    model_name = request.form.get('model_name')
     metadata = request.form.get('metadata', '{}')
     
-    if not file or not model_id:
-        current_app.logger.error("Missing file or model_id")
-        raise InvalidUsage('Missing file or model_id', status_code=400)
+    if not model_name:
+        current_app.logger.error("Missing model_name")
+        raise InvalidUsage('Missing model_name', status_code=400)
+    
+    files = request.files
+    if not files:
+        current_app.logger.error("No files uploaded")
+        raise InvalidUsage('No files uploaded', status_code=400)
     
     try:
         metadata_dict = json.loads(metadata)
-        current_app.logger.info(f"Uploading model with ID: {model_id}")
-        manifest_cid, new_version = model_repo.upload_model(model_id, file, metadata_dict)
+        current_app.logger.info(f"Uploading model with name: {model_name}")
+        file_dict = {file.filename: file for file in files.getlist('files')}
+        manifest_cid, new_version = model_repo.upload_model(model_name, file_dict, metadata_dict)
         current_app.logger.info(f"Model uploaded successfully. CID: {manifest_cid}, Version: {new_version}")
         return jsonify({'manifest_cid': manifest_cid, 'version': new_version})
     except json.JSONDecodeError:
