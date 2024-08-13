@@ -14,7 +14,9 @@ class ModelRepository:
 
     def upload_model(self, model_name: str, files: Dict[str, Any], metadata: dict) -> tuple:
         try:
+            logging.info(f"Starting upload for model: {model_name}")
             major_version, minor_version = self._generate_new_version(model_name)
+            logging.info(f"Generated new version: {major_version}.{minor_version}")
             
             metadata_obj = ModelMetadata(
                 model_name=model_name,
@@ -23,17 +25,23 @@ class ModelRepository:
                 minor_version=minor_version
             )
             
+            logging.info(f"Created ModelMetadata object: {metadata_obj}")
+            logging.info(f"Additional metadata: {metadata}")
+            for key, value in metadata.items():
+                setattr(metadata_obj, key, value)
+            
             for file_name, file_content in files.items():
                 file_type = os.path.splitext(file_name)[1][1:].lower()
                 file_cid = self.client.add_bytes(file_content.read())
                 metadata_obj.add_file(file_name, file_type, file_cid)
+                logging.info(f"Added file: {file_name}, type: {file_type}, CID: {file_cid}")
             
             manifest_cid = self.client.add_json(metadata_obj.to_dict())
             
-            logging.debug(f"Uploaded model {model_name} version {metadata_obj.version} with manifest CID: {manifest_cid}")
+            logging.info(f"Uploaded model {model_name} version {metadata_obj.version} with manifest CID: {manifest_cid}")
             return manifest_cid, metadata_obj.version
         except Exception as e:
-            logging.error(f"Error uploading model: {str(e)}")
+            logging.info(f"Error uploading model: {str(e)}")
             raise
 
     def _generate_new_version(self, model_name: str) -> tuple:
