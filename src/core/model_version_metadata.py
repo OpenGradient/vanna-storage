@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 
 @dataclass
 class ModelVersionMetadata:
-    model_name: str
+    model_id: str
     created_at: str
     major_version: int
     minor_version: int
@@ -11,7 +11,7 @@ class ModelVersionMetadata:
 
     @property
     def name(self):
-        return f"{self.version}_{self.model_name}"
+        return f"{self.version}_{self.model_id}"
 
     @property
     def version(self):
@@ -29,6 +29,6 @@ class ModelVersionMetadata:
     
     def add_file(self, file_name: str, file_type: str, file_cid: str):
         self.files[file_name] = {
-            "type": file_type,
-            "cid": file_cid
+            "file_type": file_type,
+            "file_cid": file_cid
         } 
