@@ -43,33 +43,28 @@ model_repo = ModelRepository()
 
 @bp.route('/upload_model', methods=['POST'])
 def route_upload_model():
-    logging.info("Received upload_model request")
     model_id = request.form.get('model_id')
     metadata = request.form.get('metadata', '{}')
     
     if not model_id:
-        logging.info("Missing model_id")
+        logging.error("Missing model_id")
         raise InvalidUsage('Missing model_id', status_code=400)
     
     files = request.files
     if not files:
-        logging.info("No files uploaded")
+        logging.error("No files uploaded")
         raise InvalidUsage('No files uploaded', status_code=400)
     
     try:
         metadata_dict = json.loads(metadata)
-        logging.info(f"Uploading model with name: {model_id}")
-        logging.info(f"Metadata: {metadata_dict}")
         file_dict = {file.filename: file for file in files.getlist('files')}
-        logging.info(f"Files: {list(file_dict.keys())}")
         manifest_cid, new_version = model_repo.upload_model(model_id, file_dict, metadata_dict)
-        logging.info(f"Model uploaded successfully. CID: {manifest_cid}, Version: {new_version}")
         return jsonify({'manifest_cid': manifest_cid, 'version': new_version})
     except json.JSONDecodeError:
-        logging.info("Invalid JSON in metadata")
+        logging.error("Invalid JSON in metadata")
         raise InvalidUsage('Invalid JSON in metadata', status_code=400)
     except Exception as e:
-        logging.info(f"Error uploading model: {str(e)}")
+        logging.error(f"Error uploading model: {str(e)}")
         raise InvalidUsage('Error uploading model', status_code=500, payload={'details': str(e)})
 
 @bp.route('/download_model', methods=['GET'])
@@ -154,23 +149,18 @@ def route_get_model_info(model_id, version=None):
 def route_update_model_metadata(model_id, version):
     try:
         new_metadata = request.json
-        logging.info(f"Received update request for model {model_id} version {version}")
-        logging.info(f"New metadata: {new_metadata}")
-
         updated_info = model_repo.update_model_metadata(model_id, version, new_metadata)
-        logging.info(f"Update successful. Updated info: {updated_info}")
-
         return jsonify(updated_info['metadata'])
     except ValueError as ve:
         error_message = str(ve)
-        logging.info(f"ValueError: {error_message}")
+        logging.error(f"ValueError: {error_message}")
         return jsonify({"error": "Invalid manifest", "message": error_message}), 400
     except KeyError as ke:
         error_message = f"Missing key in manifest: {str(ke)}"
-        logging.info(error_message)
+        logging.error(error_message)
         return jsonify({"error": "Invalid manifest structure", "message": error_message}), 400
     except Exception as e:
-        logging.info(f"Unexpected error updating model metadata: {str(e)}")
+        logging.error(f"Unexpected error updating model metadata: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": "Internal server error", "message": str(e)}), 500

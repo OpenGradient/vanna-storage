@@ -12,7 +12,7 @@ def create_app():
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.NOTSET,
         format='%(asctime)s - %(levelname)s - %(message)s',
         filename='app.log',
         filemode='w')
