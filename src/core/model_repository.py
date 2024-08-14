@@ -1,44 +1,46 @@
 import json
 import logging
 from core.ipfs_client import IPFSClient
-from src.core.model_version_metadata import ModelVersionMetadata
+from core.model_version_metadata import ModelVersionMetadata
 from packaging import version as parse
 from datetime import datetime
-from typing import List, Dict
+from typing import Any, List, Dict
 import os
-from werkzeug.utils import secure_filename
 
 class ModelRepository:
     def __init__(self):
         self.client = IPFSClient()
 
-    def upload_model(self, model_id: str, file, metadata: dict) -> tuple:
+    def upload_model(self, model_id: str, files: Dict[str, Any], metadata: dict) -> tuple:
         try:
-            file_name = secure_filename(file.filename)
-            file_type = os.path.splitext(file_name)[1][1:].lower()
-            
-            serialized_model = file.read()
-            model_file_cid = self.client.add_bytes(serialized_model)
-            
+            logging.info(f"Starting upload for model: {model_id}")
             major_version, minor_version = self._generate_new_version(model_id)
+            logging.info(f"Generated new version: {major_version}.{minor_version}")
             
             metadata_obj = ModelVersionMetadata(
                 model_id=model_id,
-                file_name=file_name,
-                file_type=file_type,
-                file_cid=model_file_cid,
                 created_at=datetime.now().isoformat(),
                 major_version=major_version,
-                minor_version=minor_version,
-                **metadata
+                minor_version=minor_version
             )
+            
+            logging.info(f"Created ModelMetadata object: {metadata_obj}")
+            logging.info(f"Additional metadata: {metadata}")
+            for key, value in metadata.items():
+                setattr(metadata_obj, key, value)
+            
+            for file_name, file_content in files.items():
+                file_type = os.path.splitext(file_name)[1][1:].lower()
+                file_cid = self.client.add_bytes(file_content.read())
+                metadata_obj.add_file(file_name, file_type, file_cid)
+                logging.info(f"Added file: {file_name}, type: {file_type}, CID: {file_cid}")
             
             manifest_cid = self.client.add_json(metadata_obj.to_dict())
             
-            logging.debug(f"Uploaded model {model_id} version {metadata_obj.version} with manifest CID: {manifest_cid}")
+            logging.info(f"Uploaded model {model_id} version {metadata_obj.version} with manifest CID: {manifest_cid}")
             return manifest_cid, metadata_obj.version
         except Exception as e:
-            logging.error(f"Error uploading model: {str(e)}")
+            logging.info(f"Error uploading model: {str(e)}")
             raise
 
     def _generate_new_version(self, model_id: str) -> tuple:
@@ -53,19 +55,22 @@ class ModelRepository:
             minor = 0
         return major, minor
 
-    def download_model(self, model_id: str, version: str) -> bytes:
+    def download_model(self, model_id: str, version: str) -> Dict[str, bytes]:
         try:
             manifest_cid = self.get_manifest_cid(model_id, version)
             manifest = self.client.get_json(manifest_cid)
             
-            if not manifest or 'file_cid' not in manifest:
+            if not manifest or 'files' not in manifest:
                 raise ValueError(f"Invalid manifest for {model_id} v{version}")
             
-            model_data = self.client.cat(manifest['file_cid'])
-            if not model_data:
-                raise ValueError(f"Failed to retrieve model data for {model_id} v{version}")
+            model_files = {}
+            for file_name, file_info in manifest['files'].items():
+                file_data = self.client.cat(file_info['cid'])
+                if not file_data:
+                    raise ValueError(f"Failed to retrieve file {file_name} for {model_id} v{version}")
+                model_files[file_name] = file_data
             
-            return model_data
+            return model_files
         except Exception as e:
             logging.error(f"Error in download_model: {str(e)}", exc_info=True)
             raise
@@ -188,3 +193,14 @@ class ModelRepository:
         except Exception as e:
             logging.error(f"Error in update_model_metadata: {str(e)}", exc_info=True)
             raise
+
+
+        ## SINGLE FILE / PARTIAL UPDATES 
+            # For partial uploads: ingest files --> if file exists, overwrite, otherwise add new files
+            # Support PUT and PATCH for partial updates?
+                # Explore PATCH first
+        
+        ## SPECIFIC FILE DOWNLOADS
+        ## LIST FILES IN A MODEL
+
+        #Include size in bytes, switch the key to CID in files

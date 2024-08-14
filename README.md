@@ -101,13 +101,16 @@ curl -X POST -H "Content-Type: multipart/form-data" \
 
 2. Download a model:
 ```
-curl -X GET http://localhost:5002/download_model/test_identity_model/1.07 --output downloaded_model.onnx
+curl -OJ http://localhost:5002/download_model/multi_file_model/1.00 
 ```
+
 ```
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
 100    98  100    98    0     0   3527      0 --:--:-- --:--:-- --:--:--  3629
 ```
+
+- model metadata with a single file will download the file directly, multiple files will be downloaded as a zip file
 
 3. Download the model using query parameters:
 ```                                                                                                       

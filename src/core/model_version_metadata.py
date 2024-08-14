@@ -4,12 +4,10 @@ from typing import List, Optional, Dict, Any
 @dataclass
 class ModelVersionMetadata:
     model_id: str
-    file_name: str
-    file_type: str
-    file_cid: str
     created_at: str
     major_version: int
     minor_version: int
+    files: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     @property
     def name(self):
@@ -28,3 +26,9 @@ class ModelVersionMetadata:
     @classmethod
     def from_dict(cls, data):
         return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
+    
+    def add_file(self, file_name: str, file_type: str, file_cid: str):
+        self.files[file_name] = {
+            "file_type": file_type,
+            "file_cid": file_cid
+        } 
