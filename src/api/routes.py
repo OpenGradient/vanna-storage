@@ -53,6 +53,7 @@ def route_upload_model():
     files = request.files
     if not files:
         logging.error("No files uploaded")
+        logging.error("No files uploaded")
         raise InvalidUsage('No files uploaded', status_code=400)
     
     try:
@@ -62,8 +63,10 @@ def route_upload_model():
         return jsonify({'manifest_cid': manifest_cid, 'version': new_version})
     except json.JSONDecodeError:
         logging.error("Invalid JSON in metadata")
+        logging.error("Invalid JSON in metadata")
         raise InvalidUsage('Invalid JSON in metadata', status_code=400)
     except Exception as e:
+        logging.error(f"Error uploading model: {str(e)}")
         logging.error(f"Error uploading model: {str(e)}")
         raise InvalidUsage('Error uploading model', status_code=500, payload={'details': str(e)})
 
@@ -154,12 +157,15 @@ def route_update_model_metadata(ipfs_uuid, version):
     except ValueError as ve:
         error_message = str(ve)
         logging.error(f"ValueError: {error_message}")
+        logging.error(f"ValueError: {error_message}")
         return jsonify({"error": "Invalid manifest", "message": error_message}), 400
     except KeyError as ke:
         error_message = f"Missing key in manifest: {str(ke)}"
         logging.error(error_message)
+        logging.error(error_message)
         return jsonify({"error": "Invalid manifest structure", "message": error_message}), 400
     except Exception as e:
+        logging.error(f"Unexpected error updating model metadata: {str(e)}")
         logging.error(f"Unexpected error updating model metadata: {str(e)}")
         import traceback
         traceback.print_exc()
