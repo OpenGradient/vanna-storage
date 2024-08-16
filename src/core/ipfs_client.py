@@ -93,8 +93,8 @@ class IPFSClient:
                 try:
                     content = self.cat(cid)
                     json_content = json.loads(content)
-                    if 'model_id' in json_content:
-                        object_info['model_id'] = json_content['model_id']
+                    if 'ipfs_uuid' in json_content:
+                        object_info['ipfs_uuid'] = json_content['ipfs_uuid']
                         object_info['version'] = json_content.get('version', 'Unknown')
                     object_info['Content'] = json_content
                 except json.JSONDecodeError:
@@ -105,7 +105,7 @@ class IPFSClient:
             
             print(f"Successfully listed {len(objects)} pinned objects from IPFS")
             for obj in objects:
-                print(f"CID: {obj['Hash']}, Type: {obj['Type']}, Model ID: {obj.get('model_id', 'N/A')}, Version: {obj.get('version', 'N/A')}")
+                print(f"CID: {obj['Hash']}, Type: {obj['Type']}, Model ID: {obj.get('ipfs_uuid', 'N/A')}, Version: {obj.get('version', 'N/A')}")
             return objects
         except Exception as e:
             print(f"Error listing objects from IPFS: {str(e)}")
