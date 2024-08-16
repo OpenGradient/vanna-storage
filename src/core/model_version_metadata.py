@@ -1,9 +1,10 @@
 from dataclasses import dataclass, asdict, field
 from typing import List, Optional, Dict, Any
+from uuid import UUID
 
 @dataclass
 class ModelVersionMetadata:
-    model_id: str
+    ipfs_uuid: UUID
     created_at: str
     major_version: int
     minor_version: int
@@ -11,7 +12,7 @@ class ModelVersionMetadata:
 
     @property
     def name(self):
-        return f"{self.version}_{self.model_id}"
+        return f"{self.version}_{self.ipfs_uuid}"
 
     @property
     def version(self):
