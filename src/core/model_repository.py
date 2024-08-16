@@ -14,11 +14,7 @@ class ModelRepository:
 
     def upload_model(self, ipfs_uuid: UUID, files: Dict[str, Any], metadata: dict) -> tuple:
         try:
-<<<<<<< HEAD
             major_version, minor_version = self._generate_new_version(ipfs_uuid)
-=======
-            major_version, minor_version = self._generate_new_version(model_id)
->>>>>>> main
             
             metadata_obj = ModelVersionMetadata(
                 ipfs_uuid=ipfs_uuid,
