@@ -33,5 +33,6 @@ class ModelVersionMetadata:
     def add_file(self, file_name: str, file_type: str, file_cid: str):
         self.files[file_name] = {
             "file_type": file_type,
-            "file_cid": file_cid
+            "file_cid": file_cid,
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
