@@ -4,7 +4,7 @@ from uuid import UUID
 from core.ipfs_client import IPFSClient
 from core.model_version_metadata import ModelVersionMetadata
 from packaging import version as parse
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Dict
 import os
 
@@ -18,7 +18,7 @@ class ModelRepository:
             
             metadata_obj = ModelVersionMetadata(
                 ipfs_uuid=ipfs_uuid,
-                created_at=datetime.now().isoformat(),
+                created_at=datetime.now(timezone.utc).isoformat(),
                 major_version=major_version,
                 minor_version=minor_version
             )
@@ -30,6 +30,11 @@ class ModelRepository:
                 file_type = os.path.splitext(file_name)[1][1:].lower()
                 file_cid = self.client.add_bytes(file_content.read())
                 metadata_obj.add_file(file_name, file_type, file_cid)
+            
+            # Ensure all files have a created_at timestamp
+            for file_info in metadata_obj.files.values():
+                if 'created_at' not in file_info:
+                    file_info['created_at'] = datetime.now(timezone.utc).isoformat()
             
             manifest_cid = self.client.add_json(metadata_obj.to_dict())
             
@@ -129,10 +134,12 @@ class ModelRepository:
                 if isinstance(data, dict) and 'ipfs_uuid' in data and 'version' in data:
                     ipfs_uuid = data['ipfs_uuid']
                     version = data['version']
+                    created_at = data.get('created_at', '1970-01-01T00:00:00Z')  # Default to epoch if not present
                     if ipfs_uuid not in latest_models or parse.parse(version) > parse.parse(latest_models[ipfs_uuid]['version']):
                         latest_models[ipfs_uuid] = {
                             'version': version,
-                            'cid': obj['Hash']
+                            'cid': obj['Hash'],
+                            'created_at': created_at
                         }
             except json.JSONDecodeError:
                 continue

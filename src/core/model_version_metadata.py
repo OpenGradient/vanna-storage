@@ -1,6 +1,7 @@
 from dataclasses import dataclass, asdict, field
 from typing import List, Optional, Dict, Any
 from uuid import UUID
+from datetime import datetime, timezone
 
 @dataclass
 class ModelVersionMetadata:
@@ -31,5 +32,6 @@ class ModelVersionMetadata:
     def add_file(self, file_name: str, file_type: str, file_cid: str):
         self.files[file_name] = {
             "file_type": file_type,
-            "file_cid": file_cid
-        } 
+            "file_cid": file_cid,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }

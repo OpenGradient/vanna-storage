@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, Response, current_app
+from flask import Blueprint, request, jsonify, Response, current_app, send_file
 from core.model_repository import ModelRepository
 from core.ipfs_client import IPFSClient
 from packaging import version as parse
@@ -6,6 +6,7 @@ import json
 import io
 import zipfile
 import logging
+from datetime import datetime, timezone
 
 bp = Blueprint('api', __name__)
 
@@ -40,6 +41,7 @@ def internal_error(error):
     return jsonify({"error": str(error), "message": "Internal server error"}), 500
 
 model_repo = ModelRepository()
+ipfs_client = IPFSClient()
 
 @bp.route('/upload_model', methods=['POST'])
 def route_upload_model():
@@ -47,28 +49,26 @@ def route_upload_model():
     metadata = request.form.get('metadata', '{}')
     
     if not ipfs_uuid:
-        logging.error("Missing ipfs_uuid")
-        raise InvalidUsage('Missing ipfs_uuid', status_code=400)
+        return jsonify({'error': 'Missing ipfs_uuid'}), 400
     
     files = request.files
     if not files:
-        logging.error("No files uploaded")
-        logging.error("No files uploaded")
-        raise InvalidUsage('No files uploaded', status_code=400)
+        return jsonify({'error': 'No files uploaded'}), 400
     
     try:
         metadata_dict = json.loads(metadata)
         file_dict = {file.filename: file for file in files.getlist('files')}
         manifest_cid, new_version = model_repo.upload_model(ipfs_uuid, file_dict, metadata_dict)
-        return jsonify({'manifest_cid': manifest_cid, 'version': new_version})
+        return jsonify({
+            'ipfs_uuid': ipfs_uuid,
+            'manifest_cid': manifest_cid,
+            'version': new_version
+        })
     except json.JSONDecodeError:
-        logging.error("Invalid JSON in metadata")
-        logging.error("Invalid JSON in metadata")
-        raise InvalidUsage('Invalid JSON in metadata', status_code=400)
+        return jsonify({'error': 'Invalid JSON in metadata'}), 400
     except Exception as e:
-        logging.error(f"Error uploading model: {str(e)}")
-        logging.error(f"Error uploading model: {str(e)}")
-        raise InvalidUsage('Error uploading model', status_code=500, payload={'details': str(e)})
+        current_app.logger.error(f"Error uploading model: {str(e)}")
+        return jsonify({'error': 'Error uploading model', 'details': str(e)}), 500
 
 @bp.route('/download_model', methods=['GET'])
 @bp.route('/download_model/<ipfs_uuid>/<version>', methods=['GET'])
@@ -170,3 +170,84 @@ def route_update_model_metadata(ipfs_uuid, version):
         import traceback
         traceback.print_exc()
         return jsonify({"error": "Internal server error", "message": str(e)}), 500
+
+@bp.route('/list_files/<ipfs_uuid>/<version>', methods=['GET'])
+def route_list_files(ipfs_uuid, version):
+    try:
+        model_info = model_repo.get_model_info(ipfs_uuid, version)
+        if 'files' not in model_info:
+            return jsonify({'error': 'No files found for this model version'}), 404
+        
+        files_list = [
+            {
+                'filename': filename,
+                'file_type': file_info.get('file_type', 'unknown'),
+                'file_cid': file_info.get('file_cid', ''),
+                'created_at': file_info.get('created_at', 'Unknown')
+            }
+            for filename, file_info in model_info['files'].items()
+        ]
+        
+        return jsonify({
+            'ipfs_uuid': ipfs_uuid,
+            'version': version,
+            'files': files_list
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error listing files: {str(e)}")
+        return jsonify({'error': 'Error listing files', 'details': str(e)}), 500
+
+@bp.route('/download_file/<file_cid>', methods=['GET'])
+def route_download_file(file_cid):
+    try:
+        file_content = ipfs_client.cat(file_cid)
+        
+        # Attempt to get the filename from the model info
+        filename = "downloaded_file"  # Default filename
+        for model_info in model_repo.get_all_objects():
+            for file_info in model_info.get('files', {}).values():
+                if file_info.get('file_cid') == file_cid:
+                    filename = file_info.get('filename', filename)
+                    break
+            if filename != "downloaded_file":
+                break
+        
+        return Response(
+            file_content,
+            mimetype='application/octet-stream',
+            headers={'Content-Disposition': f'attachment;filename={filename}'}
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error downloading file: {str(e)}")
+        return jsonify({'error': 'Error downloading file', 'details': str(e)}), 500
+
+@bp.route('/list_latest_models', methods=['GET'])
+def route_list_latest_models():
+    try:
+        order = request.args.get('order', 'desc').lower()
+        if order not in ['asc', 'desc']:
+            return jsonify({'error': 'Invalid order parameter. Use "asc" or "desc".'}), 400
+
+        latest_models = model_repo.get_all_latest_models()
+        
+        # Sort the models by creation date
+        sorted_models = sorted(
+            latest_models.items(),
+            key=lambda x: datetime.fromisoformat(x[1]['created_at'].replace('Z', '+00:00')),
+            reverse=(order == 'desc')
+        )
+
+        result = [
+            {
+                'ipfs_uuid': ipfs_uuid,
+                'version': info['version'],
+                'cid': info['cid'],
+                'created_at': info['created_at']
+            }
+            for ipfs_uuid, info in sorted_models
+        ]
+
+        return jsonify(result)
+    except Exception as e:
+        current_app.logger.error(f"Error listing latest models: {str(e)}")
+        return jsonify({'error': 'Error listing latest models', 'details': str(e)}), 500
