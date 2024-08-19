@@ -55,22 +55,11 @@ def route_upload_model():
     files = request.files
     if not files:
         return jsonify({'error': 'No files uploaded'}), 400
-    
-    # Log the incoming files
-    current_app.logger.info("Incoming files:")
-    for filename, file in files.items():
-        current_app.logger.info(f"  - {filename} (type: {file.content_type}, size: {file.content_length} bytes)")
-    
+
     try:
         metadata_dict = json.loads(metadata)
         file_dict = {file.filename: file for file in files.getlist('files')}
         
-        # Log the file_dict
-        current_app.logger.info("Files to be uploaded:")
-        for filename, file in file_dict.items():
-            current_app.logger.info(f"  - {filename} (type: {file.content_type}, size: {file.content_length} bytes)")
-        
-        # Add release notes to metadata only if provided
         if release_notes is not None:
             metadata_dict['release_notes'] = release_notes
         
