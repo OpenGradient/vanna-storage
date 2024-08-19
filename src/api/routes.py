@@ -47,6 +47,7 @@ ipfs_client = IPFSClient()
 def route_upload_model():
     ipfs_uuid = request.form.get('ipfs_uuid')
     metadata = request.form.get('metadata', '{}')
+    release_notes = request.form.get('release_notes')  # Now this can be None if not provided
     
     if not ipfs_uuid:
         return jsonify({'error': 'Missing ipfs_uuid'}), 400
@@ -55,15 +56,35 @@ def route_upload_model():
     if not files:
         return jsonify({'error': 'No files uploaded'}), 400
     
+    # Log the incoming files
+    current_app.logger.info("Incoming files:")
+    for filename, file in files.items():
+        current_app.logger.info(f"  - {filename} (type: {file.content_type}, size: {file.content_length} bytes)")
+    
     try:
         metadata_dict = json.loads(metadata)
         file_dict = {file.filename: file for file in files.getlist('files')}
+        
+        # Log the file_dict
+        current_app.logger.info("Files to be uploaded:")
+        for filename, file in file_dict.items():
+            current_app.logger.info(f"  - {filename} (type: {file.content_type}, size: {file.content_length} bytes)")
+        
+        # Add release notes to metadata only if provided
+        if release_notes is not None:
+            metadata_dict['release_notes'] = release_notes
+        
         manifest_cid, new_version = model_repo.upload_model(ipfs_uuid, file_dict, metadata_dict)
-        return jsonify({
+        
+        response = {
             'ipfs_uuid': ipfs_uuid,
             'manifest_cid': manifest_cid,
-            'version': new_version
-        })
+            'version': new_version,
+        }
+        if release_notes is not None:
+            response['release_notes'] = release_notes
+        
+        return jsonify(response)
     except json.JSONDecodeError:
         return jsonify({'error': 'Invalid JSON in metadata'}), 400
     except Exception as e:

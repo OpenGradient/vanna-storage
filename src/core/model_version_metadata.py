@@ -10,6 +10,7 @@ class ModelVersionMetadata:
     major_version: int
     minor_version: int
     files: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    release_notes: Optional[str] = None
 
     @property
     def name(self):
@@ -32,6 +33,5 @@ class ModelVersionMetadata:
     def add_file(self, file_name: str, file_type: str, file_cid: str):
         self.files[file_name] = {
             "file_type": file_type,
-            "file_cid": file_cid,
-            "created_at": datetime.now(timezone.utc).isoformat()
+            "file_cid": file_cid
         }
