@@ -47,7 +47,7 @@ ipfs_client = IPFSClient()
 def route_upload_model():
     ipfs_uuid = request.form.get('ipfs_uuid')
     metadata = request.form.get('metadata', '{}')
-    release_notes = request.form.get('release_notes')  # Now this can be None if not provided
+    release_notes = request.form.get('release_notes')
     
     if not ipfs_uuid:
         return jsonify({'error': 'Missing ipfs_uuid'}), 400
