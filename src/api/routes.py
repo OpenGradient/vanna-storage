@@ -47,6 +47,7 @@ ipfs_client = IPFSClient()
 def route_upload_model():
     ipfs_uuid = request.form.get('ipfs_uuid')
     metadata = request.form.get('metadata', '{}')
+    release_notes = request.form.get('release_notes')
     
     if not ipfs_uuid:
         return jsonify({'error': 'Missing ipfs_uuid'}), 400
@@ -54,16 +55,25 @@ def route_upload_model():
     files = request.files
     if not files:
         return jsonify({'error': 'No files uploaded'}), 400
-    
+
     try:
         metadata_dict = json.loads(metadata)
         file_dict = {file.filename: file for file in files.getlist('files')}
+        
+        if release_notes is not None:
+            metadata_dict['release_notes'] = release_notes
+        
         manifest_cid, new_version = model_repo.upload_model(ipfs_uuid, file_dict, metadata_dict)
-        return jsonify({
+        
+        response = {
             'ipfs_uuid': ipfs_uuid,
             'manifest_cid': manifest_cid,
-            'version': new_version
-        })
+            'version': new_version,
+        }
+        if release_notes is not None:
+            response['release_notes'] = release_notes
+        
+        return jsonify(response)
     except json.JSONDecodeError:
         return jsonify({'error': 'Invalid JSON in metadata'}), 400
     except Exception as e:

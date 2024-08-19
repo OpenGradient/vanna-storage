@@ -5,7 +5,7 @@ from core.ipfs_client import IPFSClient
 from core.model_version_metadata import ModelVersionMetadata
 from packaging import version as parse
 from datetime import datetime, timezone
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional
 import os
 
 class ModelRepository:
@@ -20,7 +20,8 @@ class ModelRepository:
                 ipfs_uuid=ipfs_uuid,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 major_version=major_version,
-                minor_version=minor_version
+                minor_version=minor_version,
+                release_notes=metadata.get('release_notes')
             )
             
             for key, value in metadata.items():

@@ -10,6 +10,7 @@ class ModelVersionMetadata:
     major_version: int
     minor_version: int
     files: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    release_notes: Optional[str] = None
 
     @property
     def name(self):
