@@ -7,6 +7,7 @@ import io
 import zipfile
 import logging
 from datetime import datetime, timezone
+from mimetypes import guess_type
 
 bp = Blueprint('api', __name__)
 
@@ -261,3 +262,29 @@ def route_list_latest_models():
     except Exception as e:
         current_app.logger.error(f"Error listing latest models: {str(e)}")
         return jsonify({'error': 'Error listing latest models', 'details': str(e)}), 500
+
+@bp.route('/raw_content/<file_cid>', methods=['GET'])
+def route_get_raw_content(file_cid):
+    try:
+        file_content = ipfs_client.cat(file_cid)
+        
+        # Attempt to get the filename and determine content type
+        filename = "unknown_file"
+        content_type = "application/octet-stream"
+        for model_info in model_repo.get_all_objects():
+            for file_info in model_info.get('files', {}).values():
+                if file_info.get('file_cid') == file_cid:
+                    filename = file_info.get('filename', filename)
+                    content_type = guess_type(filename)[0] or "application/octet-stream"
+                    break
+            if filename != "unknown_file":
+                break
+        
+        return Response(
+            file_content,
+            mimetype=content_type,
+            headers={'Content-Disposition': f'inline; filename={filename}'}
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error fetching raw content: {str(e)}")
+        return jsonify({'error': 'Error fetching raw content', 'details': str(e)}), 500
