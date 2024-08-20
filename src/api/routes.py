@@ -111,11 +111,32 @@ def route_download_model(ipfs_uuid=None, version=None):
         raise InvalidUsage('Error downloading model', status_code=500, payload={'details': str(e)})
 
 @bp.route('/list_versions/<ipfs_uuid>', methods=['GET'])
-def route_list_versions(ipfs_uuid):
+@bp.route('/list_versions/<ipfs_uuid>/<version>', methods=['GET'])
+def route_list_versions(ipfs_uuid, version=None):
     try:
-        versions = model_repo.list_versions(ipfs_uuid)
-        sorted_versions = sorted(versions, key=lambda v: parse.parse(v))
-        return jsonify({'ipfs_uuid': ipfs_uuid, 'versions': sorted_versions})
+        file_type = request.args.get('file_type')
+        versions = model_repo.list_versions(ipfs_uuid, file_type)
+        
+        if not versions:
+            return jsonify({'error': 'No versions found'}), 404
+        
+        sorted_versions = sorted(versions, key=lambda v: parse.parse(v), reverse=True)
+        
+        if version is None:
+            # Return the latest version if no specific version is requested
+            latest_version = sorted_versions[0]
+            latest_info = model_repo.get_model_info(ipfs_uuid, latest_version)
+            return jsonify({
+                'ipfs_uuid': ipfs_uuid,
+                'latest_version': latest_version,
+                'info': latest_info
+            })
+        else:
+            # Return all versions if a specific version is requested
+            return jsonify({
+                'ipfs_uuid': ipfs_uuid,
+                'versions': sorted_versions
+            })
     except Exception as e:
         current_app.logger.error(f"Error listing versions: {str(e)}")
         raise InvalidUsage('Error listing versions', status_code=500, payload={'details': str(e)})
@@ -159,45 +180,30 @@ def route_get_model_info(ipfs_uuid, version=None):
         current_app.logger.error(f"Error getting model info: {str(e)}")
         raise InvalidUsage('Error getting model info', status_code=500, payload={'details': str(e)})
 
-@bp.route('/update_model_metadata/<ipfs_uuid>/<version>', methods=['PUT'])
-def route_update_model_metadata(ipfs_uuid, version):
-    try:
-        new_metadata = request.json
-        updated_info = model_repo.update_model_metadata(ipfs_uuid, version, new_metadata)
-        return jsonify(updated_info['metadata'])
-    except ValueError as ve:
-        error_message = str(ve)
-        logging.error(f"ValueError: {error_message}")
-        logging.error(f"ValueError: {error_message}")
-        return jsonify({"error": "Invalid manifest", "message": error_message}), 400
-    except KeyError as ke:
-        error_message = f"Missing key in manifest: {str(ke)}"
-        logging.error(error_message)
-        logging.error(error_message)
-        return jsonify({"error": "Invalid manifest structure", "message": error_message}), 400
-    except Exception as e:
-        logging.error(f"Unexpected error updating model metadata: {str(e)}")
-        logging.error(f"Unexpected error updating model metadata: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": "Internal server error", "message": str(e)}), 500
-
+@bp.route('/list_files/<ipfs_uuid>', methods=['GET'])
 @bp.route('/list_files/<ipfs_uuid>/<version>', methods=['GET'])
-def route_list_files(ipfs_uuid, version):
+def route_list_files(ipfs_uuid, version=None):
     try:
+        file_type = request.args.get('file_type')
+        
+        if version is None:
+            # Get the latest version if no version is specified
+            version = model_repo.get_latest_version(ipfs_uuid)
+        
         model_info = model_repo.get_model_info(ipfs_uuid, version)
         if 'files' not in model_info:
             return jsonify({'error': 'No files found for this model version'}), 404
         
-        files_list = [
-            {
-                'filename': filename,
-                'file_type': file_info.get('file_type', 'unknown'),
-                'file_cid': file_info.get('file_cid', ''),
-                'created_at': file_info.get('created_at', 'Unknown')
-            }
-            for filename, file_info in model_info['files'].items()
-        ]
+        files_list = []
+        for filename, file_info in model_info['files'].items():
+            if file_type is None or file_info.get('file_type') == file_type:
+                files_list.append({
+                    'filename': filename,
+                    'file_type': file_info.get('file_type', 'unknown'),
+                    'file_cid': file_info.get('file_cid', ''),
+                    'created_at': file_info.get('created_at', 'Unknown'),
+                    'size': file_info.get('size', 'Unknown')
+                })
         
         return jsonify({
             'ipfs_uuid': ipfs_uuid,
