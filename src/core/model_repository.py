@@ -197,14 +197,3 @@ class ModelRepository:
         except Exception as e:
             logging.error(f"Error in update_model_metadata: {str(e)}", exc_info=True)
             raise
-
-
-        ## SINGLE FILE / PARTIAL UPDATES 
-            # For partial uploads: ingest files --> if file exists, overwrite, otherwise add new files
-            # Support PUT and PATCH for partial updates?
-                # Explore PATCH first
-        
-        ## SPECIFIC FILE DOWNLOADS
-        ## LIST FILES IN A MODEL
-
-        #Include size in bytes, switch the key to CID in files
