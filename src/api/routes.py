@@ -111,32 +111,14 @@ def route_download_model(ipfs_uuid=None, version=None):
         raise InvalidUsage('Error downloading model', status_code=500, payload={'details': str(e)})
 
 @bp.route('/list_versions/<ipfs_uuid>', methods=['GET'])
-@bp.route('/list_versions/<ipfs_uuid>/<version>', methods=['GET'])
-def route_list_versions(ipfs_uuid, version=None):
+def route_list_versions(ipfs_uuid):
     try:
-        file_type = request.args.get('file_type')
-        versions = model_repo.list_versions(ipfs_uuid, file_type)
+        versions = model_repo.list_versions(ipfs_uuid)
         
         if not versions:
             return jsonify({'error': 'No versions found'}), 404
         
-        sorted_versions = sorted(versions, key=lambda v: parse.parse(v), reverse=True)
-        
-        if version is None:
-            # Return the latest version if no specific version is requested
-            latest_version = sorted_versions[0]
-            latest_info = model_repo.get_model_info(ipfs_uuid, latest_version)
-            return jsonify({
-                'ipfs_uuid': ipfs_uuid,
-                'latest_version': latest_version,
-                'info': latest_info
-            })
-        else:
-            # Return all versions if a specific version is requested
-            return jsonify({
-                'ipfs_uuid': ipfs_uuid,
-                'versions': sorted_versions
-            })
+        return sorted(versions, key=lambda v: parse.parse(v), reverse=True)
     except Exception as e:
         current_app.logger.error(f"Error listing versions: {str(e)}")
         raise InvalidUsage('Error listing versions', status_code=500, payload={'details': str(e)})
