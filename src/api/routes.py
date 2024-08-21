@@ -64,12 +64,13 @@ def route_upload_model():
         if release_notes is not None:
             metadata_dict['release_notes'] = release_notes
         
-        manifest_cid, new_version = model_repo.upload_model(ipfs_uuid, file_dict, metadata_dict)
+        manifest_cid, new_version, onnx_file_cids = model_repo.upload_model(ipfs_uuid, file_dict, metadata_dict)
         
         response = {
             'ipfs_uuid': ipfs_uuid,
             'manifest_cid': manifest_cid,
             'version': new_version,
+            'onnx_file_cids': onnx_file_cids
         }
         if release_notes is not None:
             response['release_notes'] = release_notes

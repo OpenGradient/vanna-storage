@@ -27,9 +27,12 @@ class ModelRepository:
             for key, value in metadata.items():
                 setattr(metadata_obj, key, value)
             
+            onnx_file_cids = []
             for file_name, file_content in files.items():
                 file_type = os.path.splitext(file_name)[1][1:].lower()
                 file_cid = self.client.add_bytes(file_content.read())
+                if file_type == "onnx":
+                    onnx_file_cids.append(file_cid)
                 metadata_obj.add_file(file_name, file_type, file_cid)
             
             # Ensure all files have a created_at timestamp
@@ -40,7 +43,7 @@ class ModelRepository:
             manifest_cid = self.client.add_json(metadata_obj.to_dict())
             
             logging.info(f"Uploaded model {ipfs_uuid} version {metadata_obj.version} with manifest CID: {manifest_cid}")
-            return manifest_cid, metadata_obj.version
+            return manifest_cid, metadata_obj.version, onnx_file_cids
         except Exception as e:
             logging.error(f"Error uploading model: {str(e)}")
             raise
