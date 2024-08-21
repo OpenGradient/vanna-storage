@@ -117,8 +117,8 @@ def route_list_versions(ipfs_uuid):
         
         if not versions:
             return jsonify({'error': 'No versions found'}), 404
-        
-        return sorted(versions, key=lambda v: parse.parse(v), reverse=True)
+
+        return versions
     except Exception as e:
         current_app.logger.error(f"Error listing versions: {str(e)}")
         raise InvalidUsage('Error listing versions', status_code=500, payload={'details': str(e)})
