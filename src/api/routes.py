@@ -169,9 +169,9 @@ def route_get_model_info(ipfs_uuid, version=None):
 def route_list_files(ipfs_uuid, version=None):
     try:
         file_type = request.args.get('file_type')
-        
+
+        version = version if version is not None else request.args.get('version')
         if version is None:
-            # Get the latest version if no version is specified
             version = model_repo.get_latest_version(ipfs_uuid)
         
         model_info = model_repo.get_model_info(ipfs_uuid, version)
