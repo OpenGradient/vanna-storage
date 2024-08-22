@@ -67,7 +67,7 @@ class ModelRepository:
             
             model_files = {}
             for file_name, file_info in manifest['files'].items():
-                file_data = self.client.cat(file_info['cid'])
+                file_data = self.client.cat(file_info['file_cid'])
                 if not file_data:
                     raise ValueError(f"Failed to retrieve file {file_name} for {ipfs_uuid} v{version}")
                 model_files[file_name] = file_data
