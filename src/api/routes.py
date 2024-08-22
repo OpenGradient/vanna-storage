@@ -86,8 +86,10 @@ def route_upload_model():
 def route_download_model(ipfs_uuid=None, version=None):
     if ipfs_uuid is None:
         ipfs_uuid = request.args.get('ipfs_uuid')
+
+    version = version if version is not None else request.args.get('version')
     if version is None:
-        version = request.args.get('version')
+        version = model_repo.get_latest_version(ipfs_uuid)
     
     if not ipfs_uuid or not version:
         raise InvalidUsage('Missing ipfs_uuid or version', status_code=400)
