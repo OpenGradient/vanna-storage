@@ -96,18 +96,13 @@ def route_download_model(ipfs_uuid=None, version=None):
     
     try:
         model_files = model_repo.download_model(ipfs_uuid, version)
-        if len(model_files) == 1:
-            file_name, file_content = next(iter(model_files.items()))
-            return Response(file_content, mimetype='application/octet-stream',
-                            headers={'Content-Disposition': f'attachment;filename={version}.{ipfs_uuid}.{file_name}'})
-        else:
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                for file_name, file_content in model_files.items():
-                    zip_file.writestr(file_name, file_content)
-            zip_buffer.seek(0)
-            return Response(zip_buffer.getvalue(), mimetype='application/zip',
-                            headers={'Content-Disposition': f'attachment;filename={version}.{ipfs_uuid}.zip'})
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_name, file_content in model_files.items():
+                zip_file.writestr(file_name, file_content)
+        zip_buffer.seek(0)
+        return Response(zip_buffer.getvalue(), mimetype='application/zip',
+                        headers={'Content-Disposition': f'attachment;filename={version}.{ipfs_uuid}.zip'})
     except Exception as e:
         current_app.logger.error(f"Error downloading model: {str(e)}")
         raise InvalidUsage('Error downloading model', status_code=500, payload={'details': str(e)})
