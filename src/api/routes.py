@@ -81,7 +81,7 @@ def route_upload_model():
         current_app.logger.error(f"Error uploading model: {str(e)}")
         return jsonify({'error': 'Error uploading model', 'details': str(e)}), 500
 
-@bp.route('/download_model', methods=['GET'])
+@bp.route('/download_model/<ipfs_uuid>', methods=['GET'])
 @bp.route('/download_model/<ipfs_uuid>/<version>', methods=['GET'])
 def route_download_model(ipfs_uuid=None, version=None):
     if ipfs_uuid is None:
