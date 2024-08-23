@@ -30,9 +30,10 @@ class ModelVersionMetadata:
     def from_dict(cls, data):
         return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
     
-    def add_file(self, file_name: str, file_type: str, file_cid: str):
+    def add_file(self, file_name: str, file_type: str, file_cid: str, file_size: int):
         self.files[file_name] = {
             "file_type": file_type,
             "file_cid": file_cid,
+            "file_size": file_size,
             "created_at": datetime.now(timezone.utc).isoformat()
         }

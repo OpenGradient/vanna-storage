@@ -30,8 +30,10 @@ class ModelRepository:
             # Add new files
             for file_name, file_content in files.items():
                 file_type = os.path.splitext(file_name)[1][1:].lower()
+                file_size = len(file_content.read())
+                file_content.seek(0)  # Reset file pointer to the beginning
                 file_cid = self.client.add_bytes(file_content.read())
-                metadata_obj.add_file(file_name, file_type, file_cid)
+                metadata_obj.add_file(file_name, file_type, file_cid, file_size)
             
             # Add previous files
             if prev_files:
