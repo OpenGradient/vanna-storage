@@ -181,7 +181,7 @@ def route_list_files(ipfs_uuid, version=None):
                     'file_type': file_info.get('file_type', 'unknown'),
                     'file_cid': file_info.get('file_cid', ''),
                     'created_at': file_info.get('created_at', 'Unknown'),
-                    'size': file_info.get('size', 'Unknown')
+                    'file_size': file_info.get('file_size', 'Unknown')
                 })
         
         return jsonify({
