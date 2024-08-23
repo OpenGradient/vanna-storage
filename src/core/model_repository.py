@@ -12,7 +12,7 @@ class ModelRepository:
     def __init__(self):
         self.client = IPFSClient()
 
-    def upload_model(self, ipfs_uuid: UUID, files: Dict[str, Any], metadata: dict, prev_files: Optional[Dict[str, str]] = None) -> tuple:
+    def upload_model(self, ipfs_uuid: UUID, files: Dict[str, Any], metadata: dict, prev_files: Optional[Dict[str, Dict[str, Any]]] = None) -> tuple:
         try:
             major_version, minor_version = self._generate_new_version(ipfs_uuid)
             
@@ -37,15 +37,12 @@ class ModelRepository:
             
             # Add previous files
             if prev_files:
-                for file_name, file_cid in prev_files.items():
+                for file_name, file_info in prev_files.items():
                     if file_name not in metadata_obj.files:
                         file_type = os.path.splitext(file_name)[1][1:].lower()
-                        metadata_obj.add_file(file_name, file_type, file_cid)
-            
-            # Ensure all files have a created_at timestamp
-            for file_info in metadata_obj.files.values():
-                if 'created_at' not in file_info:
-                    file_info['created_at'] = datetime.now(timezone.utc).isoformat()
+                        file_cid = file_info['file_cid']
+                        file_size = file_info['file_size']
+                        metadata_obj.add_file(file_name, file_type, file_cid, file_size)
             
             manifest_cid = self.client.add_json(metadata_obj.to_dict())
             
@@ -54,6 +51,14 @@ class ModelRepository:
         except Exception as e:
             logging.error(f"Error uploading model: {str(e)}")
             raise
+
+    def _get_file_size(self, file_cid: str) -> int:
+        try:
+            file_data = self.client.cat(file_cid)
+            return len(file_data)
+        except Exception as e:
+            logging.error(f"Error getting file size for CID {file_cid}: {str(e)}")
+            return 0  # Return 0 if unable to get file size
 
     def _generate_new_version(self, ipfs_uuid: UUID) -> tuple:
         versions = self.list_versions(ipfs_uuid)
