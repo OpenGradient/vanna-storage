@@ -12,7 +12,7 @@ class ModelRepository:
     def __init__(self):
         self.client = IPFSClient()
 
-    def upload_model(self, ipfs_uuid: UUID, files: Dict[str, Any], metadata: dict) -> tuple:
+    def upload_model(self, ipfs_uuid: UUID, files: Dict[str, Any], metadata: dict, prev_files: Optional[Dict[str, str]] = None) -> tuple:
         try:
             major_version, minor_version = self._generate_new_version(ipfs_uuid)
             
@@ -27,10 +27,18 @@ class ModelRepository:
             for key, value in metadata.items():
                 setattr(metadata_obj, key, value)
             
+            # Add new files
             for file_name, file_content in files.items():
                 file_type = os.path.splitext(file_name)[1][1:].lower()
                 file_cid = self.client.add_bytes(file_content.read())
                 metadata_obj.add_file(file_name, file_type, file_cid)
+            
+            # Add previous files
+            if prev_files:
+                for file_name, file_cid in prev_files.items():
+                    if file_name not in metadata_obj.files:
+                        file_type = os.path.splitext(file_name)[1][1:].lower()
+                        metadata_obj.add_file(file_name, file_type, file_cid)
             
             # Ensure all files have a created_at timestamp
             for file_info in metadata_obj.files.values():
