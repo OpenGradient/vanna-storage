@@ -13,7 +13,7 @@ class IPFSClient:
         print(f"Initialized IPFSClient with base_url: {self.base_url}, gateway_url: {self.gateway_url}")
 
     def cat(self, cid):
-        print(f"Attempting to retrieve content for CID: {cid}")
+        # print(f"Attempting to retrieve content for CID: {cid}")
         try:
             if isinstance(cid, dict):
                 if 'Hash' in cid:
@@ -28,7 +28,7 @@ class IPFSClient:
             response.raise_for_status()
             content = response.content
             
-            print(f"Successfully retrieved content for CID: {cid}, content length: {len(content)} bytes")
+            # print(f"Successfully retrieved content for CID: {cid}, content length: {len(content)} bytes")
             return content
         except requests.exceptions.RequestException as e:
             print(f"Error in cat for CID {cid}: {str(e)}")
@@ -53,11 +53,11 @@ class IPFSClient:
             raise
 
     def get_json(self, cid):
-        print(f"Attempting to retrieve and parse JSON for CID: {cid}")
+        # print(f"Attempting to retrieve and parse JSON for CID: {cid}")
         try:
             content = self.cat(cid)
             json_data = json.loads(content)
-            print(f"Successfully retrieved and parsed JSON for CID: {cid}")
+            # print(f"Successfully retrieved and parsed JSON for CID: {cid}")
             return json_data
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON for CID {cid}: {str(e)}")
@@ -81,7 +81,7 @@ class IPFSClient:
             raise
 
     def list_objects(self):
-        print("Attempting to list all pinned objects in IPFS")
+        # print("Attempting to list all pinned objects in IPFS")
         try:
             response = self.session.post(f'{self.base_url}/pin/ls')
             response.raise_for_status()
@@ -103,9 +103,10 @@ class IPFSClient:
                     object_info['Content'] = f"Error retrieving content: {str(e)}"
                 objects.append(object_info)
             
-            print(f"Successfully listed {len(objects)} pinned objects from IPFS")
+            # print(f"Successfully listed {len(objects)} pinned objects from IPFS")
             for obj in objects:
-                print(f"CID: {obj['Hash']}, Type: {obj['Type']}, Model ID: {obj.get('ipfs_uuid', 'N/A')}, Version: {obj.get('version', 'N/A')}")
+                pass
+                # print(f"CID: {obj['Hash']}, Type: {obj['Type']}, Model ID: {obj.get('ipfs_uuid', 'N/A')}, Version: {obj.get('version', 'N/A')}")
             return objects
         except Exception as e:
             print(f"Error listing objects from IPFS: {str(e)}")

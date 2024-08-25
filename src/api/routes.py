@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, Response, current_app, send_file
+from flask import Blueprint, request, jsonify, Response, current_app, Request
 from core.model_repository import ModelRepository
 from core.ipfs_client import IPFSClient
 from packaging import version as parse
@@ -6,6 +6,8 @@ import json
 import io
 import zipfile
 import logging
+import mimetypes
+from typing import Literal, Optional
 from datetime import datetime, timezone
 from mimetypes import guess_type
 
@@ -193,29 +195,74 @@ def route_list_files(ipfs_uuid, version=None):
         current_app.logger.error(f"Error listing files: {str(e)}")
         return jsonify({'error': 'Error listing files', 'details': str(e)}), 500
 
-@bp.route('/download_file/<file_cid>', methods=['GET'])
-def route_download_file(file_cid):
+def _is_valid_integer(s):
     try:
-        file_content = ipfs_client.cat(file_cid)
-        
-        # Attempt to get the filename from the model info
-        filename = "downloaded_file"  # Default filename
-        for model_info in model_repo.get_all_objects():
-            for file_info in model_info.get('files', {}).values():
-                if file_info.get('file_cid') == file_cid:
-                    filename = file_info.get('filename', filename)
-                    break
-            if filename != "downloaded_file":
-                break
-        
-        return Response(
-            file_content,
-            mimetype='application/octet-stream',
-            headers={'Content-Disposition': f'attachment;filename={filename}'}
-        )
+        int(s)
+        return True
+    except Exception:
+        return False
+
+def _send_file_download(ipfs_uuid: Optional[str], request: Request, display_type: Literal["attachment", "inline"]):
+    ipfs_uuid = ipfs_uuid if ipfs_uuid is not None else request.args.get('ipfs_uuid')
+    if ipfs_uuid is None:
+        raise InvalidUsage('Missing ipfs_uuid', status_code=400)
+
+    version = request.args.get('version')
+    if version is None:
+        version = model_repo.get_latest_version(ipfs_uuid)
+
+    target_filename = request.args.get("target_filename")
+    if target_filename is None:
+        raise InvalidUsage('Missing target_filename query arg', status_code=400)
+
+    try:
+        model_info = model_repo.get_model_info(ipfs_uuid, version)
+        if 'files' not in model_info:
+            return jsonify({'error': 'No files found for this model version'}), 404
+        if not isinstance(model_info['files'], dict):
+            raise Exception("Files is not a dict")
+
+        for filename, metadata in model_info['files'].items():
+            assert isinstance(metadata, dict)
+            if filename == target_filename:
+                assert "file_cid" in metadata, "file_cid key not in files metadata dict"
+                assert metadata["file_cid"] is not None, "file_cid key exists in files metadata dict but is None"
+                assert isinstance(metadata["file_cid"], str), "file_cid value exists but is not a string"
+
+                file_content = ipfs_client.cat(metadata["file_cid"])
+                file_size = metadata.get("file_size", None)
+
+                headers = {'Content-Disposition': f'{display_type};filename={filename}'}
+                if (_is_valid_integer(file_size)):
+                    headers["Content-Length"] = str(file_size)
+
+                guessed_mimetype = mimetypes.guess_type(filename)
+                return Response(
+                    file_content,
+                    mimetype=guessed_mimetype[0] if guessed_mimetype[0] is not None else 'application/octet-stream',
+                    headers=headers
+                )
+
+        return jsonify({'error': 'File not found'}), 404
     except Exception as e:
-        current_app.logger.error(f"Error downloading file: {str(e)}")
-        return jsonify({'error': 'Error downloading file', 'details': str(e)}), 500
+        current_app.logger.error(f"Error downloading model: {str(e)}")
+        raise InvalidUsage('Error downloading model', status_code=500, payload={'details': str(e)})
+
+@bp.route('/download_file/<ipfs_uuid>', methods=['GET'])
+def route_download_model_file(ipfs_uuid=None):
+    return _send_file_download(
+        ipfs_uuid=ipfs_uuid,
+        request=request,
+        display_type="attachment",
+    )
+
+@bp.route('/raw_content/<ipfs_uuid>', methods=['GET'])
+def route_model_file_raw(ipfs_uuid=None):
+    return _send_file_download(
+        ipfs_uuid=ipfs_uuid,
+        request=request,
+        display_type="inline",
+    )
 
 @bp.route('/list_latest_models', methods=['GET'])
 def route_list_latest_models():
@@ -247,29 +294,3 @@ def route_list_latest_models():
     except Exception as e:
         current_app.logger.error(f"Error listing latest models: {str(e)}")
         return jsonify({'error': 'Error listing latest models', 'details': str(e)}), 500
-
-@bp.route('/raw_content/<file_cid>', methods=['GET'])
-def route_get_raw_content(file_cid):
-    try:
-        file_content = ipfs_client.cat(file_cid)
-        
-        # Attempt to get the filename and determine content type
-        filename = "unknown_file"
-        content_type = "application/octet-stream"
-        for model_info in model_repo.get_all_objects():
-            for file_info in model_info.get('files', {}).values():
-                if file_info.get('file_cid') == file_cid:
-                    filename = file_info.get('filename', filename)
-                    content_type = guess_type(filename)[0] or "application/octet-stream"
-                    break
-            if filename != "unknown_file":
-                break
-        
-        return Response(
-            file_content,
-            mimetype=content_type,
-            headers={'Content-Disposition': f'inline; filename={filename}'}
-        )
-    except Exception as e:
-        current_app.logger.error(f"Error fetching raw content: {str(e)}")
-        return jsonify({'error': 'Error fetching raw content', 'details': str(e)}), 500
