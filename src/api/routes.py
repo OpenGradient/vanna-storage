@@ -56,10 +56,8 @@ def route_upload_model():
     
     if not ipfs_uuid:
         return jsonify({'error': 'Missing ipfs_uuid'}), 400
-    
+
     files = request.files
-    if not files:
-        return jsonify({'error': 'No files uploaded'}), 400
 
     try:
         metadata_dict = json.loads(metadata)

@@ -146,7 +146,7 @@ class ModelRepository:
             assert 'version' in curr_version, f"version field does not exist in {curr_version}"
             curr_version_number = curr_version['version']
             if version_parser.parse(curr_version_number) > max_version_number:
-                max_version_number = curr_version_number
+                max_version_number = version_parser.parse(curr_version_number)
                 max_version = curr_version
         
         return max_version
