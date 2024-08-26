@@ -78,7 +78,7 @@ class TestModelRepository(TestCase):
         self.mock_ipfs_client.list_objects.return_value = mock_objects
         self.mock_ipfs_client.cat.side_effect = [json.dumps(manifest) for manifest in mock_manifests]
 
-        versions = self.repo.list_versions('test_model')
+        versions = self.repo.list_version_numbers('test_model')
         self.assertEqual(set(versions), {'1.00', '1.01'})
 
     def test_get_all_latest_models(self):

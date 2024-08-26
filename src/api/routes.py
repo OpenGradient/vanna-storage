@@ -51,6 +51,8 @@ def route_upload_model():
     ipfs_uuid = request.form.get('ipfs_uuid')
     metadata = request.form.get('metadata', '{}')
     release_notes = request.form.get('release_notes')
+    existing_files_form = request.form.get('existing_files')
+    is_major_version_form = request.form.get('is_major_version')
     
     if not ipfs_uuid:
         return jsonify({'error': 'Missing ipfs_uuid'}), 400
@@ -62,11 +64,19 @@ def route_upload_model():
     try:
         metadata_dict = json.loads(metadata)
         file_dict = {file.filename: file for file in files.getlist('files')}
+
+        existing_files = None
+        if existing_files_form is not None:
+            existing_files = json.loads(existing_files_form)
+        
+        is_major_version = None
+        if is_major_version_form is not None:
+            is_major_version = json.loads(is_major_version_form)
         
         if release_notes is not None:
             metadata_dict['release_notes'] = release_notes
         
-        manifest_cid, new_version = model_repo.upload_model(ipfs_uuid, file_dict, metadata_dict)
+        manifest_cid, new_version = model_repo.upload_model(ipfs_uuid=ipfs_uuid, new_files=file_dict, metadata=metadata_dict, existing_files=existing_files, is_major_version=bool(is_major_version))
         
         response = {
             'ipfs_uuid': ipfs_uuid,
@@ -91,7 +101,7 @@ def route_download_model(ipfs_uuid=None, version=None):
 
     version = version if version is not None else request.args.get('version')
     if version is None:
-        version = model_repo.get_latest_version(ipfs_uuid)
+        version = model_repo.get_latest_version_number(ipfs_uuid)
     
     if not ipfs_uuid or not version:
         raise InvalidUsage('Missing ipfs_uuid or version', status_code=400)
@@ -112,10 +122,10 @@ def route_download_model(ipfs_uuid=None, version=None):
 @bp.route('/list_versions/<ipfs_uuid>', methods=['GET'])
 def route_list_versions(ipfs_uuid):
     try:
-        versions = model_repo.list_versions(ipfs_uuid)
+        versions = model_repo.list_version_numbers(ipfs_uuid)
         
-        if not versions:
-            return jsonify({'error': 'No versions found'}), 404
+        if not versions or len(versions) == 0:
+            return []
 
         return sorted(versions, key=lambda v: parse.parse(v), reverse=True)
     except Exception as e:
@@ -125,7 +135,7 @@ def route_list_versions(ipfs_uuid):
 @bp.route('/latest_version/<ipfs_uuid>', methods=['GET'])
 def route_get_latest_version(ipfs_uuid):
     try:
-        latest_version = model_repo.get_latest_version(ipfs_uuid)
+        latest_version = model_repo.get_latest_version_number(ipfs_uuid)
         return jsonify({'ipfs_uuid': ipfs_uuid, 'latest_version': latest_version})
     except Exception as e:
         current_app.logger.error(f"Error getting latest version: {str(e)}")
@@ -154,7 +164,7 @@ def route_get_all_objects():
 def route_get_model_info(ipfs_uuid, version=None):
     try:
         if version is None:
-            version = model_repo.get_latest_version(ipfs_uuid)
+            version = model_repo.get_latest_version_number(ipfs_uuid)
         model_info = model_repo.get_model_info(ipfs_uuid, version)
         return jsonify(model_info)
     except Exception as e:
@@ -163,13 +173,15 @@ def route_get_model_info(ipfs_uuid, version=None):
 
 @bp.route('/list_files/<ipfs_uuid>', methods=['GET'])
 @bp.route('/list_files/<ipfs_uuid>/<version>', methods=['GET'])
-def route_list_files(ipfs_uuid, version=None):
+def route_list_files(ipfs_uuid, version: str | None = None):
     try:
         file_type = request.args.get('file_type')
 
         version = version if version is not None else request.args.get('version')
         if version is None:
-            version = model_repo.get_latest_version(ipfs_uuid)
+            version = model_repo.get_latest_version_number(ipfs_uuid)
+            if version is None:
+                return jsonify({'error': 'No files found for this model version'}), 404
         
         model_info = model_repo.get_model_info(ipfs_uuid, version)
         if 'files' not in model_info:
@@ -209,7 +221,9 @@ def _send_file_download(ipfs_uuid: Optional[str], request: Request, display_type
 
     version = request.args.get('version')
     if version is None:
-        version = model_repo.get_latest_version(ipfs_uuid)
+        version = model_repo.get_latest_version_number(ipfs_uuid)
+        if version is None:
+            return jsonify({'error': 'File not found'}), 404
 
     target_filename = request.args.get("target_filename")
     if target_filename is None:

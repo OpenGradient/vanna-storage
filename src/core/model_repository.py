@@ -3,18 +3,19 @@ import logging
 from uuid import UUID
 from core.ipfs_client import IPFSClient
 from core.model_version_metadata import ModelVersionMetadata
-from packaging import version as parse
+from packaging import version as version_parser
 from datetime import datetime, timezone
 from typing import Any, List, Dict, Optional
 import os
+from werkzeug.wrappers.request import FileStorage
 
 class ModelRepository:
     def __init__(self):
         self.client = IPFSClient()
 
-    def upload_model(self, ipfs_uuid: UUID, files: Dict[str, Any], metadata: dict) -> tuple:
+    def upload_model(self, ipfs_uuid: UUID, new_files: Dict[str, FileStorage], metadata: dict, existing_files: dict[str, dict[str, Any]] | None, is_major_version: bool | None) -> tuple:
         try:
-            major_version, minor_version = self._generate_new_version(ipfs_uuid)
+            major_version, minor_version = self._generate_next_version_number(ipfs_uuid, is_major_version)
             
             metadata_obj = ModelVersionMetadata(
                 ipfs_uuid=ipfs_uuid,
@@ -27,10 +28,24 @@ class ModelRepository:
             for key, value in metadata.items():
                 setattr(metadata_obj, key, value)
             
-            for file_name, file_content in files.items():
+            # Add files from existing_files if it's in the previous version
+            prev_version = self.get_latest_version(ipfs_uuid)
+            if existing_files is not None and prev_version is not None and 'files' in prev_version:
+                prev_version_files = prev_version['files']
+                assert isinstance(prev_version_files, dict)
+                for existing_filename, metadata in existing_files.items():
+                    if existing_filename in prev_version_files:
+                        prev_file_metadata = prev_version_files[existing_filename]
+                        metadata_obj.add_file_dict(file_name=existing_filename, metadata=prev_file_metadata)
+
+
+            # Add new files
+            for file_name, file_content in new_files.items():
                 file_type = os.path.splitext(file_name)[1][1:].lower()
-                file_cid = self.client.add_bytes(file_content.read())
-                metadata_obj.add_file(file_name, file_type, file_cid)
+                bytes_content = file_content.stream.read()
+                file_size = len(bytes_content)
+                file_cid = self.client.add_bytes(bytes_content)
+                metadata_obj.add_file(file_name, file_type, file_cid, file_size)
             
             # Ensure all files have a created_at timestamp
             for file_info in metadata_obj.files.values():
@@ -45,14 +60,14 @@ class ModelRepository:
             logging.error(f"Error uploading model: {str(e)}")
             raise
 
-    def _generate_new_version(self, ipfs_uuid: UUID) -> tuple:
-        versions = self.list_versions(ipfs_uuid)
+    def _generate_next_version_number(self, ipfs_uuid: UUID, is_major_version = False) -> tuple:
+        versions = self.list_version_numbers(ipfs_uuid)
         if not versions:
             return 1, 0
         latest_version = max(versions, key=lambda v: [int(x) for x in v.split('.')])
         major, minor = map(int, latest_version.split('.'))
         minor += 1
-        if minor > 99:
+        if minor > 99 or is_major_version:
             major += 1
             minor = 0
         return major, minor
@@ -90,26 +105,56 @@ class ModelRepository:
             logging.error(f"Error in get_model_info: {str(e)}", exc_info=True)
             raise
 
-    def list_versions(self, ipfs_uuid: UUID) -> List[str]:
+    def list_versions(self, ipfs_uuid: UUID) -> list[dict[str, Any]]:
         objects = self.client.list_objects()
-        versions = []
+        versions: list[dict[str, Any]] = []
         for obj in objects:
             try:
                 content = self.client.cat(obj['Hash'])
                 data = json.loads(content)
                 if isinstance(data, dict) and data.get('ipfs_uuid') == ipfs_uuid and 'version' in data:
-                    versions.append(data['version'])
+                    versions.append(data)
             except json.JSONDecodeError:
                 continue
             except Exception as e:
                 logging.error(f"Error processing object {obj['Hash']}: {str(e)}")
         return versions
 
-    def get_latest_version(self, ipfs_uuid: UUID) -> str:
+    def list_version_numbers(self, ipfs_uuid: UUID) -> list[str]:
+        versions = self.list_versions(ipfs_uuid)
+        version_numbers: list[str] = []
+        for version_metadata in versions:
+            try:
+                if 'version' in version_metadata:
+                    version_numbers.append(version_metadata['version'])
+            except Exception:
+                logging.error(f"Error processing version {version_metadata}")
+
+        return version_numbers
+
+    def get_latest_version(self, ipfs_uuid: UUID) -> dict[str, Any] | None:
         versions = self.list_versions(ipfs_uuid)
         if not versions:
-            raise ValueError(f"No versions available for ipfs_uuid {ipfs_uuid}")
-        return max(versions, key=lambda v: parse.parse(v))
+            return None
+
+        max_version_number = version_parser.parse(versions[0]["version"])
+        max_version = versions[0]
+
+        # Find version with max_version_number
+        for i in range(1, len(versions)):
+            curr_version = versions[i]
+            assert 'version' in curr_version, f"version field does not exist in {curr_version}"
+            curr_version_number = curr_version['version']
+            if version_parser.parse(curr_version_number) > max_version_number:
+                max_version_number = curr_version_number
+                max_version = curr_version
+        
+        return max_version
+
+
+    def get_latest_version_number(self, ipfs_uuid: UUID) -> str | None:
+        latest_version = self.get_latest_version(ipfs_uuid)
+        return latest_version["version"] if latest_version is not None else None
 
     def get_manifest_cid(self, ipfs_uuid: UUID, version: str) -> str:
         objects = self.client.list_objects()
@@ -125,9 +170,9 @@ class ModelRepository:
                 logging.error(f"Error processing object {obj['Hash']}: {str(e)}")
         raise ValueError(f"No manifest CID found for {ipfs_uuid} v{version}")
 
-    def get_all_latest_models(self) -> Dict[str, Dict[str, str]]:
+    def get_all_latest_models(self) -> dict[str, dict[str, str]]:
         objects = self.client.list_objects()
-        latest_models = {}
+        latest_models: dict[str, dict[str, str]] = {}
         for obj in objects:
             try:
                 content = self.client.cat(obj['Hash'])
@@ -136,7 +181,7 @@ class ModelRepository:
                     ipfs_uuid = data['ipfs_uuid']
                     version = data['version']
                     created_at = data.get('created_at', '1970-01-01T00:00:00Z')  # Default to epoch if not present
-                    if ipfs_uuid not in latest_models or parse.parse(version) > parse.parse(latest_models[ipfs_uuid]['version']):
+                    if ipfs_uuid not in latest_models or version_parser.parse(version) > version_parser.parse(latest_models[ipfs_uuid]['version']):
                         latest_models[ipfs_uuid] = {
                             'version': version,
                             'cid': obj['Hash'],

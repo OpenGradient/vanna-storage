@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict, field
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -34,6 +34,11 @@ class ModelVersionMetadata:
         self.files[file_name] = {
             "file_type": file_type,
             "file_cid": file_cid,
-            "file_size": file_size,
+            "file_size": str(file_size),
             "created_at": datetime.now(timezone.utc).isoformat()
         }
+    
+    def add_file_dict(self, file_name: str, metadata: dict[str, Any]):
+        required_keys = ["file_type", "file_cid", "file_size", "created_at"]
+        assert all(key in metadata for key in required_keys), f"Not all keys are present in metadata: {metadata} for file: {file_name}"
+        self.files[file_name] = metadata
