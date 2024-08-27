@@ -5,11 +5,11 @@ from packaging import version as parse
 import json
 import io
 import zipfile
-import logging
+from uuid import uuid4
 import mimetypes
 from typing import Literal, Optional
-from datetime import datetime, timezone
-from mimetypes import guess_type
+from datetime import datetime
+from core.model_version_metadata import assert_valid_file_metadata
 
 bp = Blueprint('api', __name__)
 
@@ -55,7 +55,7 @@ def route_upload_model():
     is_major_version_form = request.form.get('is_major_version')
     
     if not ipfs_uuid:
-        return jsonify({'error': 'Missing ipfs_uuid'}), 400
+        ipfs_uuid = uuid4()
 
     files = request.files
 
@@ -187,13 +187,11 @@ def route_list_files(ipfs_uuid, version: str | None = None):
         
         files_list = []
         for filename, file_info in model_info['files'].items():
+            assert_valid_file_metadata(file_info)
             if file_type is None or file_info.get('file_type') == file_type:
                 files_list.append({
                     'filename': filename,
-                    'file_type': file_info.get('file_type', 'unknown'),
-                    'file_cid': file_info.get('file_cid', ''),
-                    'created_at': file_info.get('created_at', 'Unknown'),
-                    'file_size': file_info.get('file_size', 'Unknown')
+                    **file_info,
                 })
         
         return jsonify({
