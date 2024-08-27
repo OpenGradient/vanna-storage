@@ -1,7 +1,24 @@
 import json
 import requests
+from typing import Any, Self
 import os
 import traceback
+from dataclasses import asdict, dataclass
+from flask import current_app
+
+from core.model_version_metadata import ModelVersionMetadata
+
+
+@dataclass
+class IPFSObject:
+    hash: str
+    type: Any
+    content: ModelVersionMetadata | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
+
 
 class IPFSClient:
     def __init__(self):
@@ -80,33 +97,36 @@ class IPFSClient:
             print(traceback.format_exc())
             raise
 
-    def list_objects(self):
-        # print("Attempting to list all pinned objects in IPFS")
+    def list_objects(self) -> list[IPFSObject]:
         try:
             response = self.session.post(f'{self.base_url}/pin/ls')
             response.raise_for_status()
             result = response.json()
             
-            objects = []
+            objects: list[IPFSObject] = []
             for cid, info in result.get('Keys', {}).items():
-                object_info = {'Hash': cid, 'Type': info.get('Type', 'Unknown')}
+                object_info = IPFSObject(hash=cid, type=info.get('Type'))
                 try:
                     content = self.cat(cid)
-                    json_content = json.loads(content)
-                    if 'ipfs_uuid' in json_content:
-                        object_info['ipfs_uuid'] = json_content['ipfs_uuid']
-                        object_info['version'] = json_content.get('version', 'Unknown')
-                    object_info['Content'] = json_content
+                    json_content: dict[str, Any] = json.loads(content)
+                    object_info.content = ModelVersionMetadata(
+                        ipfs_uuid=json_content.get('ipfs_uuid'),
+                        version=json_content.get('version'),
+                        release_notes=json_content.get('release_notes'),
+                        files=json_content.get('files'),
+                        created_at=json_content.get('created_at'),
+                    )
                 except json.JSONDecodeError:
-                    object_info['Content'] = "Not a valid JSON"
+                    current_app.logger.warn(f"invalid JSON from content with hash: {cid}")
+                    continue
+                except UnicodeDecodeError as e:
+                    current_app.logger.warn(f"UnicodeDecodeError for cid: {cid} |\n{str(e)}")
+                    continue
                 except Exception as e:
-                    object_info['Content'] = f"Error retrieving content: {str(e)}"
+                    current_app.logger.exception(f"Exception for cid: {cid} |\n{str(e)}")
+                    continue
                 objects.append(object_info)
-            
-            # print(f"Successfully listed {len(objects)} pinned objects from IPFS")
-            for obj in objects:
-                pass
-                # print(f"CID: {obj['Hash']}, Type: {obj['Type']}, Model ID: {obj.get('ipfs_uuid', 'N/A')}, Version: {obj.get('version', 'N/A')}")
+
             return objects
         except Exception as e:
             print(f"Error listing objects from IPFS: {str(e)}")
