@@ -25,6 +25,7 @@ class ModelRepository:
                 version=next_version,
                 release_notes=release_notes
             )
+            total_size = 0
 
             # Add files from existing_files if it's in the previous version
             prev_version = self.get_latest_version(ipfs_uuid)
@@ -40,6 +41,7 @@ class ModelRepository:
                             file_cid=prev_file_metadata['file_cid'],
                             file_size=prev_file_metadata['file_size']
                         )
+                        total_size += int(prev_file_metadata['file_size'])
 
             # Add new files
             for file_name, file_content in new_files.items():

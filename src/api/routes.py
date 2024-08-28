@@ -188,7 +188,7 @@ def route_list_files(ipfs_uuid, version: str | None = None):
         
         files_list = []
         for filename, metadata in model_info['files'].items():
-            if FileMetadata.is_valid_metadata(metadata) and file_type is None or metadata.get('file_type') == file_type:
+            if FileMetadata.is_valid_data(metadata) and file_type is None or metadata.get('file_type') == file_type:
                 if 'filename' not in metadata:
                     files_list.append({
                         'filename': filename,

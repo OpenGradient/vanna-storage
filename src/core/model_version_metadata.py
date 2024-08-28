@@ -6,18 +6,12 @@ from datetime import datetime, timezone
 from core.models import CoreModel
 
 @dataclass
-class FileMetadata:
+class FileMetadata(CoreModel):
     filename: str
     file_type: str
     file_cid: str
     file_size: str
     created_at: str
-
-    @staticmethod
-    def is_valid_metadata(metadata: dict[str, Any]) -> bool:
-        assert isinstance(metadata, dict)
-        required_keys = FileMetadata.__annotations__.keys()
-        return all(key in metadata for key in required_keys)
 
 @dataclass
 class ModelVersionMetadata(CoreModel):
@@ -25,6 +19,7 @@ class ModelVersionMetadata(CoreModel):
     version: str
     created_at: str
     release_notes: str | None = None
+    total_size: int | None = None
 
 
 @dataclass
@@ -42,6 +37,6 @@ class ModelVersionMetadataFiles(ModelVersionMetadata):
         })
     
     def _add_file_dict(self, filename: str, metadata: dict[str, Any]):
-        assert FileMetadata.is_valid_metadata(metadata)
+        assert FileMetadata.is_valid_data(metadata)
         self.files[filename] = metadata
 
