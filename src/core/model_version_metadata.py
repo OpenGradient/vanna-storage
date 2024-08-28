@@ -20,7 +20,7 @@ class FileMetadata:
         return all(key in metadata for key in required_keys)
 
 @dataclass
-class ModelVersionMetadataBase(CoreModel):
+class ModelVersionMetadata(CoreModel):
     ipfs_uuid: str
     version: str
     created_at: str
@@ -28,7 +28,7 @@ class ModelVersionMetadataBase(CoreModel):
 
 
 @dataclass
-class ModelVersionMetadata(ModelVersionMetadataBase):
+class ModelVersionMetadataFiles(ModelVersionMetadata):
     files: Dict[str, Dict[str, str]] = field(default_factory=dict)
     
     def add_file(self, filename: str, file_cid: str, file_size: int):

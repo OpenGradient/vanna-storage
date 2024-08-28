@@ -2,7 +2,7 @@ import json
 import logging
 from uuid import UUID
 from core.ipfs_client import IPFSClient
-from core.model_version_metadata import ModelVersionMetadata, ModelVersionMetadataBase
+from core.model_version_metadata import ModelVersionMetadataFiles, ModelVersionMetadata
 from packaging import version as version_parser
 from datetime import datetime, timezone
 from dataclasses import asdict
@@ -19,7 +19,7 @@ class ModelRepository:
         try:
             next_version = self._generate_next_version_number(ipfs_uuid, is_major_version)
 
-            metadata_obj = ModelVersionMetadata(
+            metadata_obj = ModelVersionMetadataFiles(
                 ipfs_uuid=str(ipfs_uuid),
                 created_at=datetime.now(timezone.utc).isoformat(),
                 version=next_version,
@@ -112,7 +112,7 @@ class ModelRepository:
             try:
                 content = obj.content
                 if content and content.ipfs_uuid == ipfs_uuid:
-                    base_content = ModelVersionMetadataBase(
+                    base_content = ModelVersionMetadata(
                         ipfs_uuid=content.ipfs_uuid,
                         created_at=content.created_at,
                         version=content.version,
@@ -235,7 +235,7 @@ class ModelRepository:
                     manifest[key] = value
             
             # Create a new ModelVersionMetadata object with updated information
-            updated_metadata = ModelVersionMetadata.from_dict(manifest)
+            updated_metadata = ModelVersionMetadataFiles.from_dict(manifest)
             
             # Convert back to dict and add to IPFS
             updated_manifest = asdict(updated_metadata)
