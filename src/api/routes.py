@@ -108,23 +108,17 @@ def route_download_model(ipfs_uuid=None, version=None):
     try:
         model_files, total_size = model_repo.download_model(ipfs_uuid, version)
 
-        # Stream zip file with estimated total size (will be larger than actual size)
-        def generate():
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                for file_name, file_content in model_files.items():
-                    zip_file.writestr(file_name, file_content)
-                    
-                    zip_buffer.seek(0)
-                    data = zip_buffer.read()
-                    yield data
-                    zip_buffer.seek(0)
-                    zip_buffer.truncate()
+        # TODO: Use total_size to stream downloading
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_name, file_content in model_files.items():
+                zip_file.writestr(file_name, file_content)
+        zip_buffer.seek(0)
         
-        response = Response(generate(), mimetype='application/zip')
-
+        response = Response(zip_buffer.getvalue(), mimetype='application/zip')
         response.headers.add('Content-Disposition', f'attachment;filename={version}.{ipfs_uuid}.zip')
-        response.headers.add('Content-Length', str(total_size))
+        # TODO: Uncomment when streaming
+        # response.headers.add('Content-Length', str(total_size))
 
         return response
     except Exception as e:
