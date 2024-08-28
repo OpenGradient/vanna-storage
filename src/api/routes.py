@@ -106,14 +106,27 @@ def route_download_model(ipfs_uuid=None, version=None):
         raise InvalidUsage('Missing ipfs_uuid or version', status_code=400)
     
     try:
-        model_files = model_repo.download_model(ipfs_uuid, version)
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for file_name, file_content in model_files.items():
-                zip_file.writestr(file_name, file_content)
-        zip_buffer.seek(0)
-        return Response(zip_buffer.getvalue(), mimetype='application/zip',
-                        headers={'Content-Disposition': f'attachment;filename={version}.{ipfs_uuid}.zip'})
+        model_files, total_size = model_repo.download_model(ipfs_uuid, version)
+
+        # Stream zip file with estimated total size (will be larger than actual size)
+        def generate():
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for file_name, file_content in model_files.items():
+                    zip_file.writestr(file_name, file_content)
+                    
+                    zip_buffer.seek(0)
+                    data = zip_buffer.read()
+                    yield data
+                    zip_buffer.seek(0)
+                    zip_buffer.truncate()
+        
+        response = Response(generate(), mimetype='application/zip')
+
+        response.headers.add('Content-Disposition', f'attachment;filename={version}.{ipfs_uuid}.zip')
+        response.headers.add('Content-Length', str(total_size))
+
+        return response
     except Exception as e:
         current_app.logger.error(f"Error downloading model: {str(e)}")
         raise InvalidUsage('Error downloading model', status_code=500, payload={'details': str(e)})
@@ -125,6 +138,10 @@ def route_list_versions(ipfs_uuid):
         
         if not versions or len(versions) == 0:
             return []
+
+        # Remove files dict for cleaner response
+        for version in versions:
+            version.pop("files", None)
 
         return sorted(versions, key=lambda v: parse.parse(v["version"]), reverse=True)
     except Exception as e:

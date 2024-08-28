@@ -19,12 +19,12 @@ class ModelVersionMetadata(CoreModel):
     version: str
     created_at: str
     release_notes: str | None = None
-    total_size: int | None = None
+    total_size: int = field(default=0)
 
 
 @dataclass
 class ModelVersionMetadataFiles(ModelVersionMetadata):
-    files: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    files: dict[str, dict[str, str]] = field(default_factory=dict)
     
     def add_file(self, filename: str, file_cid: str, file_size: int):
         file_type = os.path.splitext(filename)[1][1:].lower()

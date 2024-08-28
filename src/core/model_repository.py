@@ -32,29 +32,33 @@ class ModelRepository:
             if existing_files is not None and prev_version is not None and 'files' in prev_version:
                 prev_version_files = prev_version['files']
                 assert isinstance(prev_version_files, dict)
-                for existing_filename, new_filename in existing_files.items():
-                    if existing_filename in prev_version_files:
-                        prev_file_metadata = prev_version_files[existing_filename]
+                for prev_filename, new_filename in existing_files.items():
+                    if prev_filename in prev_version_files:
+                        prev_file_metadata = prev_version_files[prev_filename]
                         assert isinstance(prev_file_metadata, dict)
+                        prev_file_size = prev_file_metadata['file_size']
                         metadata_obj.add_file(
                             filename=new_filename,
                             file_cid=prev_file_metadata['file_cid'],
-                            file_size=prev_file_metadata['file_size']
+                            file_size=prev_file_size
                         )
-                        total_size += int(prev_file_metadata['file_size'])
+                        total_size += int(prev_file_size)
 
             # Add new files
             for file_name, file_content in new_files.items():
                 bytes_content = file_content.stream.read()
                 file_size = len(bytes_content)
+                total_size += file_size
                 file_cid = self.client.add_bytes(bytes_content)
                 metadata_obj.add_file(file_name, file_cid, file_size)
             
+            metadata_obj.total_size = total_size
+
             # Ensure all files have a created_at timestamp
             for file_info in metadata_obj.files.values():
                 if 'created_at' not in file_info:
                     file_info['created_at'] = datetime.now(timezone.utc).isoformat()
-            
+
             manifest_cid = self.client.add_json(asdict(metadata_obj))
             
             return manifest_cid, metadata_obj.version
@@ -74,10 +78,10 @@ class ModelRepository:
             minor = 0
         return f"{major}.{minor:02d}"
 
-    def download_model(self, ipfs_uuid: UUID, version: str) -> Dict[str, bytes]:
+    def download_model(self, ipfs_uuid: UUID, version: str) -> tuple[Dict[str, bytes], int]:
         try:
             manifest_cid = self.get_manifest_cid(ipfs_uuid, version)
-            manifest = self.client.get_json(manifest_cid)
+            manifest: dict[str, Any] = self.client.get_json(manifest_cid)
             
             if not manifest or 'files' not in manifest:
                 raise ValueError(f"Invalid manifest for {ipfs_uuid} v{version}")
@@ -89,7 +93,7 @@ class ModelRepository:
                     raise ValueError(f"Failed to retrieve file {file_name} for {ipfs_uuid} v{version}")
                 model_files[file_name] = file_data
             
-            return model_files
+            return model_files, manifest.get('total_size', 0)
         except Exception as e:
             logging.error(f"Error in download_model: {str(e)}", exc_info=True)
             raise
@@ -114,13 +118,7 @@ class ModelRepository:
             try:
                 content = obj.content
                 if content and content.ipfs_uuid == ipfs_uuid:
-                    base_content = ModelVersionMetadata(
-                        ipfs_uuid=content.ipfs_uuid,
-                        created_at=content.created_at,
-                        version=content.version,
-                        release_notes=content.release_notes,
-                    )
-                    versions.append(base_content.to_dict())
+                    versions.append(content.to_dict())
             except Exception as e:
                 logging.error(f"Error processing object {obj.hash}: {str(e)}")
         return versions

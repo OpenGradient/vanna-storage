@@ -48,8 +48,8 @@ class IPFSClient:
             # print(f"Successfully retrieved content for CID: {cid}, content length: {len(content)} bytes")
             return content
         except requests.exceptions.RequestException as e:
-            print(f"Error in cat for CID {cid}: {str(e)}")
-            print(traceback.format_exc())
+            # print(f"Error in cat for CID {cid}: {str(e)}")
+            # print(traceback.format_exc())
             raise
 
     def add_json(self, json_data):
@@ -62,7 +62,6 @@ class IPFSClient:
             response.raise_for_status()
             result = response.json()
             cid = result['Hash']
-            print(f"Successfully added JSON to IPFS with CID: {cid}")
             return cid
         except Exception as e:
             print(f"Error in add_json: {str(e)}")
@@ -112,18 +111,19 @@ class IPFSClient:
                     object_info.content = ModelVersionMetadataFiles(
                         ipfs_uuid=json_content.get('ipfs_uuid'),
                         version=json_content.get('version'),
-                        release_notes=json_content.get('release_notes'),
-                        files=json_content.get('files'),
+                        release_notes=json_content.get('release_notes', None),
+                        files=json_content.get('files', {}),
                         created_at=json_content.get('created_at'),
+                        total_size=json_content.get('total_size', 0),
                     )
                 except json.JSONDecodeError:
-                    current_app.logger.warn(f"invalid JSON from content with hash: {cid}")
+                    # current_app.logger.warn(f"invalid JSON from content with hash: {cid}")
                     continue
                 except UnicodeDecodeError as e:
-                    current_app.logger.warn(f"UnicodeDecodeError for cid: {cid} |\n{str(e)}")
+                    # current_app.logger.warn(f"UnicodeDecodeError for cid: {cid} |\n{str(e)}")
                     continue
                 except Exception as e:
-                    current_app.logger.exception(f"Exception for cid: {cid} |\n{str(e)}")
+                    # current_app.logger.exception(f"Exception for cid: {cid} |\n{str(e)}")
                     continue
                 objects.append(object_info)
 
