@@ -187,13 +187,16 @@ def route_list_files(ipfs_uuid, version: str | None = None):
             return jsonify({'error': 'No files found for this model version'}), 404
         
         files_list = []
-        for filename, file_info in model_info['files'].items():
-            assert_valid_file_metadata(file_info)
-            if file_type is None or file_info.get('file_type') == file_type:
-                files_list.append({
-                    'filename': filename,
-                    **file_info,
-                })
+        for filename, metadata in model_info['files'].items():
+            assert_valid_file_metadata(metadata)
+            if file_type is None or metadata.get('file_type') == file_type:
+                if 'filename' not in metadata:
+                    files_list.append({
+                        'filename': filename,
+                        **metadata
+                    })
+                else:
+                    files_list.append(metadata)
         
         return jsonify({
             'ipfs_uuid': ipfs_uuid,

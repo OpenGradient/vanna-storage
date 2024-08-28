@@ -15,7 +15,7 @@ class ModelRepository:
     def __init__(self):
         self.client = IPFSClient()
 
-    def upload_model(self, ipfs_uuid: UUID, new_files: Dict[str, FileStorage], existing_files: dict[str, dict[str, Any]] | None, release_notes: str | None, is_major_version: bool | None) -> tuple:
+    def upload_model(self, ipfs_uuid: UUID, new_files: Dict[str, FileStorage], existing_files: dict[str, str] | None, release_notes: str | None, is_major_version: bool | None) -> tuple:
         try:
             next_version = self._generate_next_version_number(ipfs_uuid, is_major_version)
 
@@ -31,18 +31,22 @@ class ModelRepository:
             if existing_files is not None and prev_version is not None and 'files' in prev_version:
                 prev_version_files = prev_version['files']
                 assert isinstance(prev_version_files, dict)
-                for existing_filename, metadata in existing_files.items():
+                for existing_filename, new_filename in existing_files.items():
                     if existing_filename in prev_version_files:
                         prev_file_metadata = prev_version_files[existing_filename]
-                        metadata_obj.add_file_dict(file_name=existing_filename, metadata=prev_file_metadata)
+                        assert isinstance(prev_file_metadata, dict)
+                        metadata_obj.add_file(
+                            filename=new_filename,
+                            file_cid=prev_file_metadata['file_cid'],
+                            file_size=prev_file_metadata['file_size']
+                        )
 
             # Add new files
             for file_name, file_content in new_files.items():
-                file_type = os.path.splitext(file_name)[1][1:].lower()
                 bytes_content = file_content.stream.read()
                 file_size = len(bytes_content)
                 file_cid = self.client.add_bytes(bytes_content)
-                metadata_obj.add_file(file_name, file_type, file_cid, file_size)
+                metadata_obj.add_file(file_name, file_cid, file_size)
             
             # Ensure all files have a created_at timestamp
             for file_info in metadata_obj.files.values():
