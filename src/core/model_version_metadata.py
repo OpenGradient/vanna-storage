@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 import os
-from typing import Optional, Dict, Any, Self
-from uuid import UUID
+from typing import Any
 from datetime import datetime, timezone
 from core.models import CoreModel
 
@@ -20,10 +19,6 @@ class ModelVersionMetadata(CoreModel):
     created_at: str
     release_notes: str | None = None
     total_size: int = field(default=0)
-
-
-@dataclass
-class ModelVersionMetadataFiles(ModelVersionMetadata):
     files: dict[str, dict[str, str]] = field(default_factory=dict)
     
     def add_file(self, filename: str, file_cid: str, file_size: int):

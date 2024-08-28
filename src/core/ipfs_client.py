@@ -6,14 +6,14 @@ import traceback
 from dataclasses import asdict, dataclass
 from flask import current_app
 
-from core.model_version_metadata import ModelVersionMetadataFiles
+from core.model_version_metadata import ModelVersionMetadata
 
 
 @dataclass
 class IPFSObject:
     hash: str
     type: Any
-    content: ModelVersionMetadataFiles | None = None
+    content: ModelVersionMetadata | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -108,7 +108,7 @@ class IPFSClient:
                 try:
                     content = self.cat(cid)
                     json_content: dict[str, Any] = json.loads(content)
-                    object_info.content = ModelVersionMetadataFiles(
+                    object_info.content = ModelVersionMetadata(
                         ipfs_uuid=json_content.get('ipfs_uuid'),
                         version=json_content.get('version'),
                         release_notes=json_content.get('release_notes', None),
