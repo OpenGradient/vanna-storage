@@ -5,12 +5,6 @@ from uuid import UUID
 from datetime import datetime, timezone
 from core.models import CoreModel
 
-def assert_valid_file_metadata(metadata: dict[str, Any]) -> None:
-    assert isinstance(metadata, dict)
-    required_keys = FileMetadata.__annotations__.keys()
-    assert all(key in metadata for key in required_keys), f"Not all keys {", ".join(required_keys)} are present in metadata: {metadata} for file"
-
-
 @dataclass
 class FileMetadata:
     filename: str
@@ -18,6 +12,12 @@ class FileMetadata:
     file_cid: str
     file_size: str
     created_at: str
+
+    @staticmethod
+    def is_valid_metadata(metadata: dict[str, Any]) -> bool:
+        assert isinstance(metadata, dict)
+        required_keys = FileMetadata.__annotations__.keys()
+        return all(key in metadata for key in required_keys)
 
 @dataclass
 class ModelVersionMetadataBase(CoreModel):
@@ -42,6 +42,6 @@ class ModelVersionMetadata(ModelVersionMetadataBase):
         })
     
     def _add_file_dict(self, filename: str, metadata: dict[str, Any]):
-        assert_valid_file_metadata(metadata)
+        assert FileMetadata.is_valid_metadata(metadata)
         self.files[filename] = metadata
 

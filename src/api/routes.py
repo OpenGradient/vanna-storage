@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, Response, current_app, Request
 from core.model_repository import ModelRepository
+from core.model_version_metadata import FileMetadata
 from core.ipfs_client import IPFSClient
 from packaging import version as parse
 import json
@@ -9,7 +10,6 @@ from uuid import uuid4
 import mimetypes
 from typing import Literal, Optional
 from datetime import datetime
-from core.model_version_metadata import assert_valid_file_metadata
 
 bp = Blueprint('api', __name__)
 
@@ -188,8 +188,7 @@ def route_list_files(ipfs_uuid, version: str | None = None):
         
         files_list = []
         for filename, metadata in model_info['files'].items():
-            assert_valid_file_metadata(metadata)
-            if file_type is None or metadata.get('file_type') == file_type:
+            if FileMetadata.is_valid_metadata(metadata) and file_type is None or metadata.get('file_type') == file_type:
                 if 'filename' not in metadata:
                     files_list.append({
                         'filename': filename,
