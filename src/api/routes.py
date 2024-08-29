@@ -199,7 +199,7 @@ def route_list_files(ipfs_uuid, version: str | None = None):
         
         files_list = []
         for filename, metadata in model_info['files'].items():
-            if FileMetadata.is_valid_data(metadata) and file_type is None or metadata.get('file_type') == file_type:
+            if file_type is None or metadata.get('file_type') == file_type:
                 if 'filename' not in metadata:
                     files_list.append({
                         'filename': filename,
@@ -261,6 +261,8 @@ def _send_file_download(ipfs_uuid: Optional[str], request: Request, display_type
                     headers["Content-Length"] = str(file_size)
 
                 guessed_mimetype = mimetypes.guess_type(filename)
+
+                # TODO: Handle streaming for large files
                 return Response(
                     file_content,
                     mimetype=guessed_mimetype[0] if guessed_mimetype[0] is not None else 'application/octet-stream',
@@ -286,6 +288,36 @@ def route_model_file_raw(ipfs_uuid=None):
         ipfs_uuid=ipfs_uuid,
         request=request,
         display_type="inline",
+    )
+
+def _send_file_download_with_cid(cid: str, display_type: Literal["attachment", "inline"], filename: str | None = None):
+    try:
+        file_content = ipfs_client.cat(cid)
+
+        # TODO: Handle streaming for large files
+        return Response(
+            file_content,
+            mimetype='application/octet-stream',
+            headers={'Content-Disposition': f'{display_type};filename={filename or "downloaded_file"}'}
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error downloading file: {str(e)}")
+        return jsonify({'error': 'Error downloading file', 'details': str(e)}), 500
+
+@bp.route('/files/<cid>/download', methods=['GET'])
+def route_download_file_cid(cid: str):
+    return _send_file_download_with_cid(
+        cid=cid,
+        display_type="attachment",
+        filename=request.args.get("filename")
+    )
+
+@bp.route('/files/<cid>/raw', methods=['GET'])
+def route_download_raw_file_cid(cid: str):
+    return _send_file_download_with_cid(
+        cid=cid,
+        display_type="inline",
+        filename=request.args.get("filename")
     )
 
 @bp.route('/list_latest_models', methods=['GET'])
