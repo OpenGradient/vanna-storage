@@ -24,6 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: python:3.12-alpine
     ports:
       - "5002:5000"
     # depends_on:
@@ -35,6 +36,7 @@ services:
       - IPFS_GATEWAY=${IPFS_GATEWAY:-https://ipfs.io}
     volumes:
       - ./data:/data
+      - ./src:/app
 
 volumes:
   ipfs_staging:
