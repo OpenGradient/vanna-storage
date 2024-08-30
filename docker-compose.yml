@@ -1,7 +1,6 @@
+# When working locally, uncomment the "ipfs" service and the "depends_on" line in server
 version: '3.8'
 services:
-
-  # uncomment when developing locally
   # ipfs:
   #   image: ipfs/kubo:master-2024-04-17-eb97cf9
   #   ports:
@@ -27,9 +26,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5002:5000"
-    depends_on:
-      ipfs:
-        condition: service_healthy
+    # depends_on:
+    #   ipfs:
+    #     condition: service_healthy
     environment:
       - IPFS_HOST=ipfs
       - IPFS_PORT=5001
