@@ -31,8 +31,9 @@ services:
     # depends_on:
     #   ipfs:
     #     condition: service_healthy
+    network_mode: "host"
     environment:
-      - IPFS_HOST=ipfs
+      - IPFS_HOST=localhost
       - IPFS_PORT=5001
       - IPFS_GATEWAY=https://ipfs.io
     volumes:
