@@ -24,7 +24,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: python:3.12-alpine
     ports:
       - "5002:5000"
     # depends_on:
