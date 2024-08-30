@@ -32,9 +32,9 @@ services:
     #   ipfs:
     #     condition: service_healthy
     environment:
-      - IPFS_HOST=${IPFS_HOST:-localhost}
-      - IPFS_PORT=${IPFS_PORT:-5001}
-      - IPFS_GATEWAY=${IPFS_GATEWAY:-https://ipfs.io}
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - IPFS_GATEWAY=https://ipfs.io
     volumes:
       - ./data:/data
       - ./src:/app
