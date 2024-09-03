@@ -33,6 +33,7 @@ services:
     #     condition: service_healthy
     network_mode: "host"
     environment:
+    # when working locally, change IPFS_HOST to 'ipfs'
       - IPFS_HOST=localhost
       - IPFS_PORT=5001
       - IPFS_GATEWAY=https://ipfs.io
