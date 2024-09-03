@@ -10,6 +10,9 @@ from dataclasses import asdict
 from typing import Any, List, Dict
 import os
 from werkzeug.wrappers.request import FileStorage
+from werkzeug.datastructures import FileStorage
+import tempfile
+import os
 
 class ModelRepository:
     def __init__(self):
@@ -44,14 +47,25 @@ class ModelRepository:
                         )
                         total_size += int(prev_file_size)
 
-            # Add new files
+            # Handle new files
             for file_name, file_content in new_files.items():
-                bytes_content = file_content.stream.read()
-                file_size = len(bytes_content)
-                total_size += file_size
-                file_cid = self.client.add_bytes(bytes_content)
-                metadata_obj.add_file(file_name, file_cid, file_size)
-            
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    file_size = 0
+                    for chunk in file_content.stream:
+                        temp_file.write(chunk)
+                        file_size += len(chunk)
+                    temp_file.flush()
+
+                    # Add the file to IPFS
+                    file_cid = self.client.add(temp_file.name)['Hash']
+                    
+                    # Update metadata
+                    metadata_obj.add_file(file_name, file_cid, file_size)
+                    total_size += file_size
+
+                # Clean up the temporary file
+                os.unlink(temp_file.name)
+
             metadata_obj.total_size = total_size
 
             # Ensure all files have a created_at timestamp

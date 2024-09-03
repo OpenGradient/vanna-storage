@@ -10,6 +10,9 @@ from uuid import uuid4
 import mimetypes
 from typing import Literal, Optional
 from datetime import datetime
+import os
+import tempfile
+import shutil
 
 bp = Blueprint('api', __name__)
 
@@ -50,7 +53,6 @@ ipfs_client = IPFSClient()
 def route_upload_model():
     ipfs_uuid = request.form.get('ipfs_uuid')
     release_notes = request.form.get('release_notes')
-    existing_files_form = request.form.get('existing_files')
     is_major_version_form = request.form.get('is_major_version')
     
     if not ipfs_uuid:
@@ -59,12 +61,30 @@ def route_upload_model():
     files = request.files
 
     try:
-        file_dict = {file.filename: file for file in files.getlist('files')}
+        file_dict = {}
+        temp_dir = None
 
-        existing_files = None
-        if existing_files_form is not None:
-            existing_files = json.loads(existing_files_form)
-        
+        for key, file in files.items():
+            if file.filename:
+                if file.filename.endswith('/'):  # It's a directory
+                    temp_dir = tempfile.mkdtemp()
+                    dir_path = os.path.join(temp_dir, file.filename)
+                    os.makedirs(dir_path, exist_ok=True)
+                    for root, _, filenames in os.walk(file):
+                        for filename in filenames:
+                            file_path = os.path.join(root, filename)
+                            relative_path = os.path.relpath(file_path, file.filename)
+                            dest_path = os.path.join(dir_path, relative_path)
+                            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                            with open(dest_path, 'wb') as f:
+                                f.write(file.read())
+                    file_dict[file.filename] = dir_path
+                else:
+                    file_path = request.form.get(f'{key}_path', '')
+                    if not file_path:
+                        file_path = secure_filename(file.filename)
+                    file_dict[file_path] = file.read()
+
         is_major_version = None
         if is_major_version_form is not None:
             is_major_version = json.loads(is_major_version_form)
@@ -72,7 +92,7 @@ def route_upload_model():
         manifest_cid, new_version = model_repo.upload_model(
             ipfs_uuid=ipfs_uuid,
             new_files=file_dict,
-            existing_files=existing_files,
+            existing_files=None,
             release_notes=release_notes,
             is_major_version=bool(is_major_version),
         )
@@ -91,6 +111,9 @@ def route_upload_model():
     except Exception as e:
         current_app.logger.error(f"Error uploading model in routes: {str(e)}")
         return jsonify({'error': 'Error uploading model', 'details': str(e)}), 500
+    finally:
+        if temp_dir:
+            shutil.rmtree(temp_dir)
 
 @bp.route('/download_model/<ipfs_uuid>', methods=['GET'])
 @bp.route('/download_model/<ipfs_uuid>/<version>', methods=['GET'])
