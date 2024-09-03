@@ -21,13 +21,17 @@ class ModelVersionMetadata(CoreModel):
     total_size: int = field(default=0)
     files: dict[str, dict[str, str]] = field(default_factory=dict)
     
-    def add_file(self, file_path: str, file_cid: str, file_size: int, file_type: str):
-        self.files[file_path] = {
-            "filename": os.path.basename(file_path),
+    def add_file(self, filename: str, file_cid: str, file_size: int):
+        file_type = os.path.splitext(filename)[1][1:].lower()
+        self._add_file_dict(filename=filename, metadata={
+            "filename": filename,
+            "file_type": file_type,
             "file_cid": file_cid,
             "file_size": str(file_size),
-            "file_type": file_type,
             "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        self.total_size += file_size
+        })
+    
+    def _add_file_dict(self, filename: str, metadata: dict[str, Any]):
+        assert FileMetadata.is_valid_data(metadata)
+        self.files[filename] = metadata
 
