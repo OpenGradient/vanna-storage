@@ -27,8 +27,11 @@ RUN pip install --upgrade pip \
 # Copy the rest of the application into the container
 COPY ./src .
 
+# Copy the gunicorn configuration file
+COPY gunicorn.conf.py /app/gunicorn.conf.py
+
 # Expose the port Flask/Gunicorn is accessible on
 EXPOSE 5000
 
 # Set the default command to run the Flask app via Gunicorn
-CMD ["gunicorn", "--workers=3", "--bind=0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]

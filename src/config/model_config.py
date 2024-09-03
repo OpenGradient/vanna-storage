@@ -1,2 +1,3 @@
 MODEL_FOLDER = './models'
 ONE_GB_IN_BYTES = 1024 ** 3
+TEN_GB_IN_BYTES = 10 * 1024 * 1024 * 1024  # 10GB in bytes

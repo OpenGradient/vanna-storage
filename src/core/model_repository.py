@@ -6,15 +6,18 @@ from core.model_version_metadata import ModelVersionMetadata
 from packaging import version as version_parser
 from datetime import datetime, timezone
 from dataclasses import asdict
-
+import hashlib
 from typing import Any, List, Dict
 import os
 from werkzeug.wrappers.request import FileStorage
 from werkzeug.datastructures import FileStorage
 import tempfile
 import os
+from config.model_config import TEN_GB_IN_BYTES
+from flask import abort
+import zipfile
 
-class ModelRepository:
+class ModelRepository :
     def __init__(self):
         self.client = IPFSClient()
 
@@ -49,19 +52,50 @@ class ModelRepository:
 
             # Handle new files
             for file_name, file_content in new_files.items():
+                logging.info(f"Processing file: {file_name}")
+                
                 with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                     file_size = 0
+                    checksum = hashlib.md5()
                     for chunk in file_content.stream:
                         temp_file.write(chunk)
+                        checksum.update(chunk)
                         file_size += len(chunk)
                     temp_file.flush()
 
-                    # Add the file to IPFS
-                    file_cid = self.client.add(temp_file.name)['Hash']
-                    
-                    # Update metadata
-                    metadata_obj.add_file(file_name, file_cid, file_size)
-                    total_size += file_size
+                    logging.info(f"File {file_name} processed. Size: {file_size} bytes")
+
+                    # Check if the file is a zip
+                    if file_name.lower().endswith('.zip'):
+                        logging.info(f"Processing zip file: {file_name}")
+                        with zipfile.ZipFile(temp_file.name, 'r') as zip_ref:
+                            for zip_info in zip_ref.infolist():
+                                if not zip_info.is_dir():  # Skip directories
+                                    with zip_ref.open(zip_info) as zip_file:
+                                        zip_file_content = zip_file.read()
+                                        zip_file_cid = self.client.add_bytes(zip_file_content)
+                                        zip_file_path = zip_info.filename  # Preserve the original path
+                                        metadata_obj.add_file(zip_file_path, zip_file_cid, zip_info.file_size)
+                                        total_size += zip_info.file_size
+                                        logging.info(f"Added file from zip: {zip_file_path}, CID: {zip_file_cid}, Size: {zip_info.file_size}")
+                        logging.info(f"Zip file {file_name} extracted and added to IPFS")
+                    else:
+                        # Read the file content
+                        with open(temp_file.name, 'rb') as f:
+                            file_content = f.read()
+
+                        # Verify checksum
+                        if checksum.hexdigest() != hashlib.md5(file_content).hexdigest():
+                            logging.error(f"Checksum mismatch for file {file_name}")
+                            abort(500, description=f"File integrity check failed for {file_name}")
+
+                        # Add the file to IPFS using add_bytes
+                        file_cid = self.client.add_bytes(file_content)
+                        logging.info(f"File {file_name} added to IPFS with CID: {file_cid}")
+
+                        # Update metadata
+                        metadata_obj.add_file(file_name, file_cid, file_size)
+                        total_size += file_size
 
                 # Clean up the temporary file
                 os.unlink(temp_file.name)
@@ -73,7 +107,13 @@ class ModelRepository:
                 if 'created_at' not in file_info:
                     file_info['created_at'] = datetime.now(timezone.utc).isoformat()
 
+            # Add debug logging
+            logging.info(f"Metadata object before adding to IPFS: {metadata_obj}")
+            logging.info(f"Total size: {total_size}")
+            logging.info(f"Files in metadata: {metadata_obj.files}")
+
             manifest_cid = self.client.add_json(asdict(metadata_obj))
+            logging.info(f"Manifest CID: {manifest_cid}")
             
             return manifest_cid, metadata_obj.version
         except Exception as e:

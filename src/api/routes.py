@@ -10,6 +10,7 @@ from uuid import uuid4
 import mimetypes
 from typing import Literal, Optional
 from datetime import datetime
+import requests
 
 bp = Blueprint('api', __name__)
 
@@ -48,18 +49,26 @@ ipfs_client = IPFSClient()
 
 @bp.route('/upload_model', methods=['POST'])
 def route_upload_model():
-    ipfs_uuid = request.form.get('ipfs_uuid')
-    release_notes = request.form.get('release_notes')
-    existing_files_form = request.form.get('existing_files')
-    is_major_version_form = request.form.get('is_major_version')
-    
-    if not ipfs_uuid:
-        ipfs_uuid = uuid4()
-
-    files = request.files
-
     try:
-        file_dict = {file.filename: file for file in files.getlist('files')}
+        ipfs_uuid = request.form.get('ipfs_uuid')
+        release_notes = request.form.get('release_notes')
+        existing_files_form = request.form.get('existing_files')
+        is_major_version_form = request.form.get('is_major_version')
+        
+        if not ipfs_uuid:
+            ipfs_uuid = uuid4()
+
+        current_app.logger.info(f"Received upload request for IPFS UUID: {ipfs_uuid}")
+        current_app.logger.info(f"Request form data: {request.form}")
+        current_app.logger.info(f"Request files: {request.files}")
+
+        files = request.files.getlist('files')
+        if not files:
+            raise InvalidUsage('No files were uploaded', status_code=400)
+
+        current_app.logger.info(f"Files received: {[file.filename for file in files]}")
+
+        file_dict = {file.filename: file for file in files}
 
         existing_files = None
         if existing_files_form is not None:
@@ -85,11 +94,13 @@ def route_upload_model():
         if release_notes is not None:
             response['release_notes'] = release_notes
         
+        current_app.logger.info(f"Upload successful. Response: {response}")
         return jsonify(response)
-    except json.JSONDecodeError:
-        return jsonify({'error': 'Invalid JSON in metadata'}), 400
+    except InvalidUsage as e:
+        current_app.logger.error(f"Invalid usage: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), e.status_code
     except Exception as e:
-        current_app.logger.error(f"Error uploading model in routes: {str(e)}")
+        current_app.logger.error(f"Error uploading model in routes: {str(e)}", exc_info=True)
         return jsonify({'error': 'Error uploading model', 'details': str(e)}), 500
 
 @bp.route('/download_model/<ipfs_uuid>', methods=['GET'])
