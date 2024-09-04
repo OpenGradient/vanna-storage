@@ -132,3 +132,17 @@ class IPFSClient:
             print(f"Error listing objects from IPFS: {str(e)}")
             print(traceback.format_exc())
             raise
+
+    def add_file_stream(self, file_stream, filename):
+        try:
+            response = self.session.post(
+                f"{self.base_url}/add",
+                files={'file': (filename, file_stream)},
+                params={'stream-channels': 'true'}
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result['Hash']
+        except Exception as e:
+            logging.error(f"Error in add_file_stream: {str(e)}")
+            raise
