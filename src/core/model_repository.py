@@ -10,6 +10,12 @@ import hashlib
 from typing import Any, List, Dict
 import os
 from werkzeug.wrappers.request import FileStorage
+import time
+import hashlib
+import tempfile
+import zipfile
+import io
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from werkzeug.datastructures import FileStorage
 import tempfile
 import os
@@ -23,8 +29,9 @@ class ModelRepository :
 
     def upload_model(self, ipfs_uuid: UUID, new_files: Dict[str, FileStorage], existing_files: dict[str, str] | None, release_notes: str | None, is_major_version: bool | None) -> tuple:
         try:
+            start_time = time.time()
+            
             next_version = self._generate_next_version_number(ipfs_uuid, is_major_version)
-
             metadata_obj = ModelVersionMetadata(
                 ipfs_uuid=str(ipfs_uuid),
                 created_at=datetime.now(timezone.utc).isoformat(),
@@ -33,8 +40,8 @@ class ModelRepository :
             )
             total_size = 0
 
-            # Add files from existing_files if it's in the previous version
-            prev_version = self.get_latest_version(ipfs_uuid)
+            # Handle existing files
+            existing_files_time = time.time()
             if existing_files is not None and prev_version is not None and 'files' in prev_version:
                 prev_version_files = prev_version['files']
                 assert isinstance(prev_version_files, dict)
@@ -49,6 +56,19 @@ class ModelRepository :
                             file_size=prev_file_size
                         )
                         total_size += int(prev_file_size)
+            logging.info(f"Existing files processing time: {time.time() - existing_files_time:.2f} seconds")
+
+            # Handle new files
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_file = {executor.submit(self.process_file, file_name, file_content, file_name.lower().endswith('.zip')): file_name for file_name, file_content in new_files.items()}
+                for future in as_completed(future_to_file):
+                    file_name = future_to_file[future]
+                    try:
+                        file_name, file_cid, file_size = future.result()
+                        metadata_obj.add_file(file_name, file_cid, file_size)
+                        total_size += file_size
+                    except Exception as e:
+                        logging.error(f"Error processing file {file_name}: {str(e)}")
 
             # Handle new files
             for file_name, file_content in new_files.items():
@@ -107,18 +127,63 @@ class ModelRepository :
                 if 'created_at' not in file_info:
                     file_info['created_at'] = datetime.now(timezone.utc).isoformat()
 
+            metadata_time = time.time()
             # Add debug logging
             logging.info(f"Metadata object before adding to IPFS: {metadata_obj}")
             logging.info(f"Total size: {total_size}")
             logging.info(f"Files in metadata: {metadata_obj.files}")
 
             manifest_cid = self.client.add_json(asdict(metadata_obj))
+            logging.info(f"Metadata creation and IPFS addition time: {time.time() - metadata_time:.2f} seconds")
+            
+            total_time = time.time() - start_time
+            logging.info(f"Total upload time: {total_time:.2f} seconds")
             logging.info(f"Manifest CID: {manifest_cid}")
             
             return manifest_cid, metadata_obj.version
         except Exception as e:
             logging.error(f"Error uploading model: {str(e)}")
             raise
+
+    def process_file(self, file_name, file_content, is_zip):
+        file_start_time = time.time()
+        logging.info(f"Processing file: {file_name}")
+        
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            file_read_time = time.time()
+            file_size = 0
+            checksum = hashlib.md5()
+            for chunk in file_content.stream:
+                temp_file.write(chunk)
+                checksum.update(chunk)
+                file_size += len(chunk)
+            temp_file.flush()
+            logging.info(f"File read and checksum time: {time.time() - file_read_time:.2f} seconds")
+
+            if is_zip:
+                zip_time = time.time()
+                for zip_file_name, zip_file_content, zip_file_size in self.process_zip_file(file_content):
+                    zip_file_cid = self.client.add_file_stream(zip_file_content, zip_file_name)
+                    metadata_obj.add_file(zip_file_name, zip_file_cid, zip_file_size)
+                    total_size += zip_file_size
+                logging.info(f"ZIP processing time: {time.time() - zip_time:.2f} seconds")
+            else:
+                non_zip_time = time.time()
+                file_cid = self.client.add_file_stream(file_content.stream, file_name)
+                logging.info(f"File {file_name} added to IPFS with CID: {file_cid}")
+                logging.info(f"Non-ZIP processing time: {time.time() - non_zip_time:.2f} seconds")
+
+        logging.info(f"Total file processing time: {time.time() - file_start_time:.2f} seconds")
+        os.unlink(temp_file.name)
+
+        return file_name, file_cid, file_size
+
+    def process_zip_file(self, file_content):
+        with zipfile.ZipFile(io.BytesIO(file_content.read()), 'r') as zip_ref:
+            for zip_info in zip_ref.infolist():
+                if not zip_info.is_dir():
+                    with zip_ref.open(zip_info) as zip_file:
+                        yield zip_info.filename, zip_file, zip_info.file_size
 
     def _generate_next_version_number(self, ipfs_uuid: UUID, is_major_version = False) -> str:
         versions = self.list_version_numbers(ipfs_uuid)
