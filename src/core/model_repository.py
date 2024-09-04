@@ -27,7 +27,7 @@ class ModelRepository :
     def __init__(self):
         self.client = IPFSClient()
 
-    def upload_model(self, ipfs_uuid: UUID, new_files: Dict[str, FileStorage], existing_files: dict[str, str] | None, release_notes: str | None, is_major_version: bool | None) -> tuple:
+    def upload_model(self, ipfs_uuid: UUID, new_files: Dict[str, FileStorage | io.BytesIO], existing_files: dict[str, str] | None, release_notes: str | None, is_major_version: bool | None) -> tuple:
         try:
             start_time = time.time()
             
@@ -70,56 +70,6 @@ class ModelRepository :
                     except Exception as e:
                         logging.error(f"Error processing file {file_name}: {str(e)}")
 
-            # Handle new files
-            for file_name, file_content in new_files.items():
-                logging.info(f"Processing file: {file_name}")
-                
-                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                    file_size = 0
-                    checksum = hashlib.md5()
-                    for chunk in file_content.stream:
-                        temp_file.write(chunk)
-                        checksum.update(chunk)
-                        file_size += len(chunk)
-                    temp_file.flush()
-
-                    logging.info(f"File {file_name} processed. Size: {file_size} bytes")
-
-                    # Check if the file is a zip
-                    if file_name.lower().endswith('.zip'):
-                        logging.info(f"Processing zip file: {file_name}")
-                        with zipfile.ZipFile(temp_file.name, 'r') as zip_ref:
-                            for zip_info in zip_ref.infolist():
-                                if not zip_info.is_dir():  # Skip directories
-                                    with zip_ref.open(zip_info) as zip_file:
-                                        zip_file_content = zip_file.read()
-                                        zip_file_cid = self.client.add_bytes(zip_file_content)
-                                        zip_file_path = zip_info.filename  # Preserve the original path
-                                        metadata_obj.add_file(zip_file_path, zip_file_cid, zip_info.file_size)
-                                        total_size += zip_info.file_size
-                                        logging.info(f"Added file from zip: {zip_file_path}, CID: {zip_file_cid}, Size: {zip_info.file_size}")
-                        logging.info(f"Zip file {file_name} extracted and added to IPFS")
-                    else:
-                        # Read the file content
-                        with open(temp_file.name, 'rb') as f:
-                            file_content = f.read()
-
-                        # Verify checksum
-                        if checksum.hexdigest() != hashlib.md5(file_content).hexdigest():
-                            logging.error(f"Checksum mismatch for file {file_name}")
-                            abort(500, description=f"File integrity check failed for {file_name}")
-
-                        # Add the file to IPFS using add_bytes
-                        file_cid = self.client.add_bytes(file_content)
-                        logging.info(f"File {file_name} added to IPFS with CID: {file_cid}")
-
-                        # Update metadata
-                        metadata_obj.add_file(file_name, file_cid, file_size)
-                        total_size += file_size
-
-                # Clean up the temporary file
-                os.unlink(temp_file.name)
-
             metadata_obj.total_size = total_size
 
             # Ensure all files have a created_at timestamp
@@ -153,7 +103,14 @@ class ModelRepository :
             file_read_time = time.time()
             file_size = 0
             checksum = hashlib.md5()
-            for chunk in file_content.stream:
+            
+            # Handle both FileStorage and BytesIO objects
+            if hasattr(file_content, 'stream'):
+                stream = file_content.stream
+            else:
+                stream = file_content
+            
+            for chunk in iter(lambda: stream.read(4096), b''):
                 temp_file.write(chunk)
                 checksum.update(chunk)
                 file_size += len(chunk)
@@ -169,7 +126,7 @@ class ModelRepository :
                 logging.info(f"ZIP processing time: {time.time() - zip_time:.2f} seconds")
             else:
                 non_zip_time = time.time()
-                file_cid = self.client.add_file_stream(file_content.stream, file_name)
+                file_cid = self.client.add_file_stream(stream, file_name)
                 logging.info(f"File {file_name} added to IPFS with CID: {file_cid}")
                 logging.info(f"Non-ZIP processing time: {time.time() - non_zip_time:.2f} seconds")
 
