@@ -113,6 +113,12 @@ def download_zip():
         return jsonify({"error": "Invalid request data"}), 400
 
     files = data['files']
+    zip_name = data.get('zip_name', 'response')
+    
+    # Ensure the zip_name ends with .zip
+    if not zip_name.lower().endswith('.zip'):
+        zip_name = f"{zip_name}.zip"
+
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
@@ -127,7 +133,7 @@ def download_zip():
     zip_buffer.seek(0)
     
     headers = Headers()
-    headers.add('Content-Disposition', 'attachment', filename='response.zip')
+    headers.add('Content-Disposition', 'attachment', filename=zip_name)
     headers.add('Content-Type', 'application/zip')
     headers.add('Content-Length', str(zip_buffer.getbuffer().nbytes))
 
