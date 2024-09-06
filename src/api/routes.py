@@ -119,26 +119,38 @@ def download_zip():
     if not zip_name.lower().endswith('.zip'):
         zip_name = f"{zip_name}.zip"
 
-    zip_buffer = BytesIO()
+    # Calculate total size
+    total_size = 0
+    for file_cid in files.values():
+        try:
+            file_size = ipfs_client.get_file_size(file_cid)
+            total_size += file_size
+        except Exception as e:
+            current_app.logger.error(f"Error getting file size for CID {file_cid}: {str(e)}")
+            return jsonify({"error": f"Error getting file size for CID {file_cid}"}), 500
 
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        for file_name, file_cid in files.items():
-            try:
-                file_content = ipfs_client.cat(file_cid)
-                zip_file.writestr(file_name, file_content)
-            except Exception as e:
-                current_app.logger.error(f"Error processing file {file_name} with CID {file_cid}: {str(e)}")
-                return jsonify({"error": f"Error processing file {file_name}"}), 500
+    def generate():
+        with zipfile.ZipFile(BytesIO(), 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_name, file_cid in files.items():
+                try:
+                    with zip_file.open(file_name, 'w') as file_in_zip:
+                        for chunk in ipfs_client.cat_stream(file_cid):
+                            file_in_zip.write(chunk)
+                except Exception as e:
+                    current_app.logger.error(f"Error processing file {file_name} with CID {file_cid}: {str(e)}")
+                    yield str(e).encode()
+                    return
 
-    zip_buffer.seek(0)
-    
+            for chunk in zip_file.fp:
+                yield chunk
+
     headers = Headers()
     headers.add('Content-Disposition', 'attachment', filename=zip_name)
     headers.add('Content-Type', 'application/zip')
-    headers.add('Content-Length', str(zip_buffer.getbuffer().nbytes))
-
+    headers.add('Content-Length', str(total_size))
+    
     return Response(
-        zip_buffer,
+        stream_with_context(generate()),
         mimetype='application/zip',
         headers=headers
     )
