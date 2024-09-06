@@ -1,6 +1,9 @@
 from flask import Blueprint, request, Response, current_app, jsonify, stream_with_context
 from api.ipfs_client import IPFSClient
 import logging
+from io import BytesIO
+import zipfile
+from werkzeug.datastructures import Headers
 
 bp = Blueprint('api', __name__)
 
@@ -102,3 +105,37 @@ def get_file_size():
     except Exception as e:
         current_app.logger.error(f"Error getting file size for CID {file_cid}: {str(e)}")
         return jsonify({"error": f"Error getting file size: {str(e)}"}), 500
+
+@bp.route('/download_zip', methods=['POST'])
+def download_zip():
+    data = request.json
+    if not data or 'files' not in data:
+        return jsonify({"error": "Invalid request data"}), 400
+
+    files = data['files']
+    total_size = 0
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for file_name, file_cid in files.items():
+            try:
+                file_size = ipfs_client.get_file_size(file_cid)
+                total_size += file_size
+                file_content = ipfs_client.cat(file_cid)
+                zip_file.writestr(file_name, file_content)
+            except Exception as e:
+                current_app.logger.error(f"Error processing file {file_name} with CID {file_cid}: {str(e)}")
+                return jsonify({"error": f"Error processing file {file_name}"}), 500
+
+    zip_buffer.seek(0)
+    
+    headers = Headers()
+    headers.add('Content-Disposition', 'attachment', filename='response.zip')
+    headers.add('Content-Type', 'application/zip')
+    headers.add('Content-Length', str(zip_buffer.getbuffer().nbytes))
+
+    return Response(
+        zip_buffer,
+        mimetype='application/zip',
+        headers=headers
+    )
