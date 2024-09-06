@@ -113,14 +113,11 @@ def download_zip():
         return jsonify({"error": "Invalid request data"}), 400
 
     files = data['files']
-    total_size = 0
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         for file_name, file_cid in files.items():
             try:
-                file_size = ipfs_client.get_file_size(file_cid)
-                total_size += file_size
                 file_content = ipfs_client.cat(file_cid)
                 zip_file.writestr(file_name, file_content)
             except Exception as e:
