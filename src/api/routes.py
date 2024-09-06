@@ -1,10 +1,13 @@
-from flask import Blueprint, request, Response, current_app, jsonify
+from flask import Blueprint, request, Response, current_app, jsonify, stream_with_context
 from api.ipfs_client import IPFSClient
 import logging
 
 bp = Blueprint('api', __name__)
 
 ipfs_client = IPFSClient()
+
+def is_stream_requested():
+    return request.args.get('stream', '').lower() == 'true'
 
 @bp.route('/upload', methods=['POST'])
 def upload():
@@ -21,8 +24,13 @@ def upload():
             current_app.logger.error("No selected file")
             return Response('No selected file', status=400)
 
-        file_content = file.read()
-        file_cid = ipfs_client.add_bytes(file_content)
+        stream = is_stream_requested()
+
+        if stream:
+            file_cid = ipfs_client.add_stream(file.stream)
+        else:
+            file_content = file.read()
+            file_cid = ipfs_client.add_bytes(file_content)
 
         current_app.logger.info(f"Uploaded file to IPFS with CID: {file_cid}")
         return jsonify({"cid": file_cid})
@@ -38,12 +46,29 @@ def download():
         return Response('Empty CID', 400)
 
     try:
-        file_content = ipfs_client.cat(file_cid)
-        return Response(
-            file_content,
-            mimetype='application/octet-stream',
-            headers={'Content-Disposition': f'attachment;filename={file_cid}'}
-        )
+        stream = is_stream_requested()
+
+        if stream:
+            def generate():
+                try:
+                    for chunk in ipfs_client.cat_stream(file_cid):
+                        yield chunk
+                except Exception as e:
+                    current_app.logger.error(f"Error in streaming: {str(e)}")
+                    yield str(e).encode()
+
+            return Response(
+                stream_with_context(generate()),
+                mimetype='application/octet-stream',
+                headers={'Content-Disposition': f'attachment;filename={file_cid}'}
+            )
+        else:
+            file_content = ipfs_client.cat(file_cid)
+            return Response(
+                file_content,
+                mimetype='application/octet-stream',
+                headers={'Content-Disposition': f'attachment;filename={file_cid}'}
+            )
     except Exception as e:
         current_app.logger.error(f"Error in download: {str(e)}")
         return Response(f"Internal Server Error: {str(e)}", status=500)

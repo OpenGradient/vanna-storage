@@ -15,3 +15,54 @@ To run a server locally, outside of docker, you need to install `virtualenv` and
 ## API Endpoints
 
 ### Upload a model
+#### POST /upload
+- **Parameters:**
+  - `file`: The file to upload (multipart/form-data)
+  - `stream` (optional): Set to `true` to enable streaming upload
+
+- **Example:**
+  ```bash
+  curl -X POST -H "Content-Type: multipart/form-data" -F "file=@model.onnx" "http://localhost:5002/upload?stream=true"
+  ```
+
+- **Response:**
+  ```json
+  {
+    "cid": "QmHash..."
+  }
+  ```
+
+### Download a model
+#### GET /download
+- **Parameters:**
+  - `cid`: The CID of the file to download
+  - `stream` (optional): Set to `true` to enable streaming download
+
+- **Example:**
+  ```bash
+  curl -X GET "http://localhost:5002/download?cid=QmHash...&stream=true" --output downloaded_file
+  ```
+
+### Get file size
+#### GET /get_file_size
+- **Parameters:**
+  - `cid`: The CID of the file
+
+- **Example:**
+  ```bash
+  curl -X GET "http://localhost:5002/get_file_size?cid=QmHash..."
+  ```
+
+- **Response:**
+  ```json
+  {
+    "cid": "QmHash...",
+    "size": 1024
+  }
+  ```
+
+# Streaming
+
+The application supports streaming for both uploads and downloads. This is particularly useful for large files as it allows processing without loading the entire file into memory.
+
+To enable streaming, add the `stream=true` query parameter to the upload or download request.
