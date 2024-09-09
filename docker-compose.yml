@@ -31,6 +31,7 @@ services:
     # depends_on:
     #   ipfs:
     #     condition: service_healthy
+    # when working locally, comment this out
     network_mode: "host"
     environment:
     # when working locally, change IPFS_HOST to 'ipfs'
