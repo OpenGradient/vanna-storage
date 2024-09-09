@@ -1,6 +1,7 @@
 from flask import Blueprint, request, Response, current_app, jsonify, stream_with_context
 from api.ipfs_client import IPFSClient
 import logging
+from requests import HTTPError
 
 bp = Blueprint('api', __name__)
 
@@ -99,6 +100,8 @@ def get_file_size():
         file_size = ipfs_client.get_file_size(file_cid)
         current_app.logger.info(f"Size of file with CID {file_cid}: {file_size} bytes")
         return jsonify({"cid": file_cid, "size": file_size})
+    except HTTPError:
+        raise
     except Exception as e:
         current_app.logger.error(f"Error getting file size for CID {file_cid}: {str(e)}")
         return jsonify({"error": f"Error getting file size: {str(e)}"}), 500
