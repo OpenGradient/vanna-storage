@@ -7,6 +7,8 @@ from werkzeug.datastructures import Headers
 import json
 from werkzeug.datastructures import FileStorage
 import time
+import tempfile
+import os
 
 bp = Blueprint('api', __name__)
 
@@ -135,6 +137,7 @@ def get_file_size():
 def download_zip():
     data = request.json
     if not data or 'files' not in data:
+        current_app.logger.error("Invalid request data")
         return jsonify({"error": "Invalid request data"}), 400
 
     files = data['files']
@@ -143,19 +146,36 @@ def download_zip():
     if not zip_name.lower().endswith('.zip'):
         zip_name = f"{zip_name}.zip"
 
-    def generate():
-        with zipfile.ZipFile(BytesIO(), 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for file_name, file_cid in files.items():
-                try:
-                    with zip_file.open(file_name, 'w') as file_in_zip:
-                        for chunk in ipfs_client.cat_stream(file_cid):
-                            file_in_zip.write(chunk)
-                except Exception as e:
-                    current_app.logger.error(f"Error processing file {file_name} with CID {file_cid}: {str(e)}")
-                    continue
+    current_app.logger.info(f"Creating zip file: {zip_name} with {len(files)} files")
 
-            zip_file.fp.seek(0)
-            yield from zip_file.fp
+    def generate():
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
+            try:
+                with zipfile.ZipFile(temp_zip, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    for file_name, file_cid in files.items():
+                        try:
+                            current_app.logger.info(f"Adding file to zip: {file_name} (CID: {file_cid})")
+                            content = b''.join(ipfs_client.cat_stream(file_cid))
+                            zip_file.writestr(file_name, content)
+                            current_app.logger.info(f"Successfully added {file_name} to zip")
+                        except Exception as e:
+                            current_app.logger.error(f"Error processing file {file_name} with CID {file_cid}: {str(e)}")
+                            continue
+
+                temp_zip.flush()
+                temp_zip.seek(0)
+                
+                while True:
+                    chunk = temp_zip.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
+            except Exception as e:
+                current_app.logger.error(f"Error generating zip file: {str(e)}")
+                yield str(e).encode()
+            finally:
+                temp_zip.close()
+                os.unlink(temp_zip.name)
 
     headers = Headers()
     headers.add('Content-Disposition', 'attachment', filename=zip_name)
