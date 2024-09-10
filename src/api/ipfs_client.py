@@ -50,9 +50,20 @@ class IPFSClient:
         return response.iter_content(chunk_size=8192)
 
     def get_file_size(self, cid):
-        response = self.session.post(f'{self.base_url}/files/stat', params={'arg': f'/ipfs/{cid}'})
+        response = self.session.post(f'{self.base_url}/ls', params={'arg': f'/ipfs/{cid}'})
         response.raise_for_status()
-        return response.json()['Size']
+        data = response.json()
+        
+        if 'Objects' in data and len(data['Objects']) > 0:
+            object_data = data['Objects'][0]
+            if 'Links' in object_data and len(object_data['Links']) > 0:
+                # Sum up the sizes of all links
+                total_size = sum(link['Size'] for link in object_data['Links'])
+                return total_size
+            else:
+                return object_data.get('Size', 0)
+        else:
+            raise ValueError("Unexpected response format from IPFS API")
 
     def chunked_add(self, file_stream, chunk_size=1024*1024):
         logger.info(f"Starting chunked file upload to IPFS. Base URL: {self.base_url}")
