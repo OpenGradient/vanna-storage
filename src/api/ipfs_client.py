@@ -6,7 +6,6 @@ import time
 import json
 
 logger = logging.getLogger(__name__)
-IPFS_DEFAULT_CHUNK_SIZE = 256 * 1024  # 256KB
 
 class IPFSClient:
     def __init__(self):
@@ -21,7 +20,7 @@ class IPFSClient:
         response.raise_for_status()
         return response.json()['Hash']
 
-    def add_stream(self, file_stream, chunk_size=1024*1024):
+    def add_stream(self, file_stream):
         logger.info(f"Starting file upload to IPFS. Base URL: {self.base_url}")
         start_time = time.time()
 
@@ -29,7 +28,6 @@ class IPFSClient:
             params = {
                 'stream-channels': 'true',
                 'progress': 'false',
-                'chunker': f'size-{chunk_size}'
             }
 
             files = {
