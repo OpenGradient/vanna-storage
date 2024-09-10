@@ -60,9 +60,3 @@ To run a server locally, outside of docker, you need to install `virtualenv` and
     "size": 1024
   }
   ```
-
-# Streaming
-
-The application supports streaming for both uploads and downloads. This is particularly useful for large files as it allows processing without loading the entire file into memory.
-
-To enable streaming, add the `stream=true` query parameter to the upload or download request.
