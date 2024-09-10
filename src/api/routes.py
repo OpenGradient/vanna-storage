@@ -9,7 +9,6 @@ from werkzeug.datastructures import FileStorage
 import time
 import tempfile
 import os
-from requests import HTTPError
 
 bp = Blueprint('api', __name__)
 
@@ -43,10 +42,7 @@ def upload():
         logger.info(f"File size: {file_size} bytes")
 
         try:
-            if file_size > 10 * 1024 * 1024:  # If file is larger than 10MB
-                file_cid = ipfs_client.chunked_add(file.stream)
-            else:
-                file_cid = ipfs_client.add_stream(file.stream)
+            file_cid = ipfs_client.add_stream(file.stream)
         except Exception as e:
             logger.error(f"IPFS upload failed: {str(e)}")
             return Response(f"IPFS upload failed: {str(e)}", status=500)
@@ -130,8 +126,6 @@ def get_file_size():
         file_size = ipfs_client.get_file_size(file_cid)
         current_app.logger.info(f"Size of file with CID {file_cid}: {file_size} bytes")
         return jsonify({"cid": file_cid, "size": file_size})
-    except HTTPError:
-        raise
     except Exception as e:
         current_app.logger.error(f"Error getting file size for CID {file_cid}: {str(e)}")
         return jsonify({"error": f"Error getting file size: {str(e)}"}), 500
