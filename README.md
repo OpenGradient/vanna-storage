@@ -28,7 +28,7 @@ To run a server locally, outside of docker, you need to install `virtualenv` and
 - **Response:**
   ```json
   {
-    "cid": "QmHash..."
+    "cid":"QmWtrojv4a43gfRtthsHerAc8USRuxkxhNrVCS6b3FA23F","size":412,"upload_time":0.027422666549682617
   }
   ```
 
