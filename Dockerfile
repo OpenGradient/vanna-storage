@@ -1,34 +1,39 @@
-# Use a Python 3.12 Alpine base image
-ARG REBUILD=1
-FROM python:3.12-alpine
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim-bullseye
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Install dependencies required for compiling Python packages
-RUN apk add --no-cache --virtual .build-deps gcc musl-dev python3-dev libffi-dev openssl-dev \
-    && apk add --no-cache jpeg-dev zlib-dev libjpeg
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libprotobuf-dev \
+    protobuf-compiler \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory inside the container
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variable to skip ONNX tests during installation
+ENV ONNX_BUILD_TESTS=0
+
+# Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements.txt file into the container
-COPY requirements.txt /app/
+# Copy the current directory contents into the container at /app
+COPY . /app
 
-# Install the Python dependencies
-RUN pip install --upgrade pip \
-    && pip install -r requirements.txt \
-    # Adding gunicorn to the installation
-    && pip install gunicorn \
-    # Remove temporary packages to reduce image size
-    && apk del .build-deps
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application into the container
-COPY ./src .
-
-# Expose the port Flask/Gunicorn is accessible on
+# Make port 5000 available to the world outside this container
 EXPOSE 5000
 
-# Set the default command to run the Flask app via Gunicorn
-CMD ["gunicorn", "--workers=3", "--bind=0.0.0.0:5000", "app:app"]
+# Run app.py when the container launches
+CMD ["gunicorn", "--workers=1", "--bind=0.0.0.0:5000", "app:app"]
