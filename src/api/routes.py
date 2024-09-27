@@ -9,6 +9,7 @@ from werkzeug.datastructures import FileStorage
 import time
 import tempfile
 import os
+from onnx import load
 
 bp = Blueprint('api', __name__)
 
@@ -41,6 +42,13 @@ def upload():
 
         logger.info(f"File size: {file_size} bytes")
 
+        # Read ONNX metadata
+        onnx_model = load(file.stream)
+        input_types = [{"name": input.name, "type": input.type.tensor_type.elem_type} for input in onnx_model.graph.input]
+        output_types = [{"name": output.name, "type": output.type.tensor_type.elem_type} for output in onnx_model.graph.output]
+
+        file.seek(0)  # Reset file pointer to the beginning
+
         try:
             file_cid = ipfs_client.add_stream(file.stream)
         except Exception as e:
@@ -49,7 +57,13 @@ def upload():
 
         total_time = time.time() - start_time
         logger.info(f"Uploaded file to IPFS with CID: {file_cid}, size: {file_size} bytes, total time: {total_time:.2f} seconds")
-        return jsonify({"cid": file_cid, "size": file_size, "upload_time": total_time})
+        return jsonify({
+            "cid": file_cid,
+            "size": file_size,
+            "upload_time": total_time,
+            "input_types": input_types,
+            "output_types": output_types
+        })
     except Exception as e:
         logger.error(f"Error in upload: {str(e)}", exc_info=True)
         return Response(f"Internal Server Error: {str(e)}", status=500)
