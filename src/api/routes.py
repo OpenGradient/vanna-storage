@@ -1,4 +1,4 @@
-from flask import Blueprint, request, Response, current_app, jsonify
+from flask import Blueprint, request, Response, current_app, jsonify, stream_with_context
 from api.ipfs_client import IPFSClient
 import logging
 from werkzeug.datastructures import FileStorage
@@ -8,7 +8,11 @@ import importlib
 import os
 import tempfile
 import zipfile
-import onnx
+from io import BytesIO
+import struct
+from onnx import onnx_pb
+from collections import namedtuple
+import io
 
 bp = Blueprint('api', __name__)
 
@@ -21,110 +25,119 @@ def load_onnx():
         current_app.logger.warning("ONNX is not installed. ONNX file parsing will be disabled.")
         return None
 
-def get_type_info(tensor):
-    if tensor.type.HasField('tensor_type'):
-        elem_type = tensor.type.tensor_type.elem_type
-        shape = [dim.dim_value if dim.HasField('dim_value') else None for dim in tensor.type.tensor_type.shape.dim]
-        return {
-            "name": tensor.name,
-            "type": onnx.TensorProto.DataType.Name(elem_type),
-            "shape": shape
-        }
-    elif tensor.type.HasField('sequence_type'):
-        return {
-            "name": tensor.name,
-            "type": "Sequence",
-            "elem_type": get_type_info(tensor.type.sequence_type.elem_type)
-        }
-    elif tensor.type.HasField('map_type'):
-        return {
-            "name": tensor.name,
-            "type": "Map",
-            "key_type": onnx.TensorProto.DataType.Name(tensor.type.map_type.key_type),
-            "value_type": get_type_info(tensor.type.map_type.value_type)
-        }
-    else:
-        return {"name": tensor.name, "type": "Unknown"}
+# Define structures for ONNX parsing
+TensorInfo = namedtuple('TensorInfo', ['name', 'data_type', 'dims'])
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+def read_onnx_header_from_stream(stream):
+    try:
+        magic_number = stream.read(4)
+        if magic_number != b'ONNX':
+            raise ValueError(f"Not a valid ONNX file. Magic number: {magic_number}")
+        
+        version = struct.unpack('<I', stream.read(4))[0]
+        
+        header = onnx_pb.ModelProto()
+        header_size = struct.unpack('<Q', stream.read(8))[0]
+        header_bytes = stream.read(header_size)
+        header.ParseFromString(header_bytes)
+        
+        if not header.IsInitialized():
+            raise ValueError("ONNX header is not fully initialized")
+        
+        return header, magic_number + struct.pack('<I', version) + struct.pack('<Q', header_size) + header_bytes
+    except Exception as e:
+        logger.error(f"Error in read_onnx_header_from_stream: {str(e)}")
+        raise
+
+def onnx_file_generator(file: FileStorage):
+    is_header_parsed = False
+    header = None
+    
+    def generate():
+        nonlocal is_header_parsed, header
+        if not is_header_parsed:
+            try:
+                header, header_bytes = read_onnx_header_from_stream(file.stream)
+                is_header_parsed = True
+                yield header_bytes
+            except Exception as e:
+                logger.error(f"Error parsing ONNX header: {str(e)}")
+                raise
+        
+        while True:
+            chunk = file.stream.read(8192)  # Read in 8KB chunks
+            if not chunk:
+                break
+            yield chunk
+    
+    return generate(), header
 
 @bp.route('/upload', methods=['POST'])
 def upload():
     try:
-        logger = logging.getLogger(__name__)
-        logger.info("Upload request received")
-        start_time = time.time()
+        file = request.files.get('file')
+        if not file:
+            return jsonify({"error": "No file part in the request"}), 400
 
-        if 'file' not in request.files:
-            logger.error("No file part in the request")
-            return Response('No file part', status=400)
-        
-        file: FileStorage = request.files['file']
-
-        if file.filename == '':
-            logger.error("No selected file")
-            return Response('No selected file', status=400)
-
-        # Get the file size
-        file.seek(0, 2)  # Go to the end of the file
-        file_size = file.tell()  # Get the position (size)
-        file.seek(0)  # Go back to the start of the file
-
-        logger.info(f"File size: {file_size} bytes")
-
-        input_types = []
-        output_types = []
-
-        # Check if the file is an ONNX file
-        if file and file.filename.lower().endswith('.onnx'):
+        if file.filename.lower().endswith('.onnx'):
+            filename = secure_filename(file.filename)
+            
             try:
-                # Save the file temporarily
-                temp_path = os.path.join('/tmp', secure_filename(file.filename))
-                file.save(temp_path)
+                file_generator, header = onnx_file_generator(file)
                 
-                # Load ONNX model from the saved file
-                onnx_model = onnx.load(temp_path)
+                if header is None:
+                    raise ValueError("Failed to parse ONNX header")
+                
+                # Extract metadata from header
+                metadata = {
+                    "ir_version": header.ir_version,
+                    "producer_name": header.producer_name,
+                    "producer_version": header.producer_version,
+                    "domain": header.domain,
+                    "model_version": header.model_version,
+                    "doc_string": header.doc_string,
+                    "metadata_props": [(prop.key, prop.value) for prop in header.metadata_props]
+                }
                 
                 # Extract input and output information
-                input_types = [get_type_info(input) for input in onnx_model.graph.input]
-                output_types = [get_type_info(output) for output in onnx_model.graph.output]
+                def get_type_info(value_info):
+                    return {
+                        "name": value_info.name,
+                        "type": onnx_pb.TensorProto.DataType.Name(value_info.type.tensor_type.elem_type),
+                        "shape": [dim.dim_value if dim.HasField('dim_value') else None 
+                                  for dim in value_info.type.tensor_type.shape.dim]
+                    }
                 
-                # Remove the temporary file
-                os.remove(temp_path)
+                metadata["input_types"] = [get_type_info(inp) for inp in header.graph.input]
+                metadata["output_types"] = [get_type_info(out) for out in header.graph.output]
+                
+                # Upload to IPFS
+                cid = ipfs_client.add_stream(file_generator, filename)
+                
+                return jsonify({
+                    "cid": cid,
+                    "metadata": metadata
+                })
+            except ValueError as ve:
+                logger.error(f"Error parsing ONNX file: {str(ve)}")
+                return jsonify({"error": f"Error parsing ONNX file: {str(ve)}"}), 400
             except Exception as e:
-                current_app.logger.error(f"Error reading ONNX file: {str(e)}")
-                # Continue with the upload even if ONNX parsing fails
-                input_types = []
-                output_types = []
-            finally:
-                file.seek(0)  # Reset file pointer to the beginning
+                logger.error(f"Error uploading to IPFS: {str(e)}")
+                return jsonify({"error": f"Error uploading to IPFS: {str(e)}"}), 500
+
         else:
-            input_types = []
-            output_types = []
+            return jsonify({"error": "Invalid file type"}), 400
 
-        try:
-            file_cid = ipfs_client.add_stream(file.stream)
-        except Exception as e:
-            logger.error(f"IPFS upload failed: {str(e)}")
-            return Response(f"IPFS upload failed: {str(e)}", status=500)
-
-        total_time = time.time() - start_time
-        logger.info(f"Uploaded file to IPFS with CID: {file_cid}, size: {file_size} bytes, total time: {total_time:.2f} seconds")
-        
-        response_data = {
-            "filename": file.filename,
-            "cid": file_cid,
-            "size": file_size,
-            "upload_time": total_time
-        }
-        
-        if input_types:
-            response_data["input_types"] = input_types
-        if output_types:
-            response_data["output_types"] = output_types
-
-        return jsonify(response_data)
     except Exception as e:
-        logger.error(f"Error in upload: {str(e)}", exc_info=True)
-        return Response(f"Internal Server Error: {str(e)}", status=500)
+        logger.error(f"Upload failed: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+def is_stream_requested():
+    return request.args.get('stream', '').lower() == 'true'
 
 @bp.route('/download', methods=['GET'])
 def download():
