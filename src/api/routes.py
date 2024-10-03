@@ -1,4 +1,4 @@
-from flask import Blueprint, request, Response, current_app, jsonify
+from flask import Blueprint, request, Response, current_app, jsonify, stream_with_context
 from api.ipfs_client import IPFSClient
 import logging
 from werkzeug.datastructures import FileStorage
@@ -125,6 +125,9 @@ def upload():
     except Exception as e:
         logger.error(f"Error in upload: {str(e)}", exc_info=True)
         return Response(f"Internal Server Error: {str(e)}", status=500)
+
+def is_stream_requested():
+    return request.args.get('stream', '').lower() == 'true'
 
 @bp.route('/download', methods=['GET'])
 def download():
