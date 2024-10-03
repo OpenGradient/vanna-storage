@@ -110,6 +110,7 @@ def upload():
         logger.info(f"Uploaded file to IPFS with CID: {file_cid}, size: {file_size} bytes, total time: {total_time:.2f} seconds")
         
         response_data = {
+            "filename": file.filename,
             "cid": file_cid,
             "size": file_size,
             "upload_time": total_time
