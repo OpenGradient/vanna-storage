@@ -10,6 +10,9 @@ from werkzeug.datastructures import FileStorage
 import time
 import tempfile
 import os
+from memory_profiler import profile
+import psutil
+import onnxruntime as ort
 
 MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 10GB
 
@@ -20,42 +23,137 @@ ipfs_client = IPFSClient()
 def is_stream_requested():
     return request.args.get('stream', '').lower() == 'true'
 
-@bp.route('/upload', methods=['POST'])
-def upload():
-    try:
-        logger = logging.getLogger(__name__)
-        logger.info("Upload request received")
-        start_time = time.time()
+import onnx
+from onnx import ModelProto
+import io
 
+def load_onnx():
+    try:
+        return onnx
+    except ImportError:
+        current_app.logger.warning("ONNX is not installed. ONNX file parsing will be disabled.")
+        return None
+
+def get_type_info(tensor):
+    if tensor.type.HasField('tensor_type'):
+        elem_type = tensor.type.tensor_type.elem_type
+        shape = [dim.dim_value if dim.HasField('dim_value') else None for dim in tensor.type.tensor_type.shape.dim]
+        return {
+            "name": tensor.name,
+            "type": onnx.TensorProto.DataType.Name(elem_type),
+            "shape": shape
+        }
+    elif tensor.type.HasField('sequence_type'):
+        return {
+            "name": tensor.name,
+            "type": "Sequence",
+            "elem_type": get_type_info(tensor.type.sequence_type.elem_type)
+        }
+    elif tensor.type.HasField('map_type'):
+        return {
+            "name": tensor.name,
+            "type": "Map",
+            "key_type": onnx.TensorProto.DataType.Name(tensor.type.map_type.key_type),
+            "value_type": get_type_info(tensor.type.map_type.value_type)
+        }
+    else:
+        return {"name": tensor.name, "type": "Unknown"}
+
+@bp.route('/upload', methods=['POST'])
+@profile
+def upload():
+    logger = logging.getLogger(__name__)
+    logger.info("Upload request received")
+    start_time = time.time()
+
+    def log_memory_usage():
+        process = psutil.Process()
+        mem_info = process.memory_info()
+        logger.info(f"Memory usage: {mem_info.rss / 1024 / 1024:.2f} MB")
+
+    log_memory_usage()
+
+    try:
         if 'file' not in request.files:
             logger.error("No file part in the request")
             return Response('No file part', status=400)
         
-        file: FileStorage = request.files['file']
-
+        file = request.files['file']
         if file.filename == '':
             logger.error("No selected file")
             return Response('No selected file', status=400)
 
-        # Get the file size
-        file.seek(0, 2)  # Go to the end of the file
-        file_size = file.tell()  # Get the position (size)
-        file.seek(0)  # Go back to the start of the file
+        file_read_start = time.time()
+        file_content = file.read()
+        file_size = len(file_content)
+        file_read_time = time.time() - file_read_start
+        logger.info(f"File read completed. Size: {file_size} bytes, Time: {file_read_time:.2f} seconds")
+        log_memory_usage()
 
-        logger.info(f"File size: {file_size} bytes")
+        input_types = []
+        output_types = []
 
-        if file_size > MAX_FILE_SIZE:
-            return Response(f"Maximum file size limit ({MAX_FILE_SIZE} bytes) exceeded.", status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        onnx_parse_time = 0
+        if file.filename.lower().endswith('.onnx'):
+            onnx_parse_start = time.time()
+            try:
+                # Create an in-memory file object
+                file_object = io.BytesIO(file_content)
+                
+                # Load the model using ONNX Runtime
+                session = ort.InferenceSession(file_object.getvalue())
+                
+                # Get input and output information
+                input_types = [
+                    {
+                        "name": input.name,
+                        "type": input.type,
+                        "shape": input.shape
+                    } for input in session.get_inputs()
+                ]
+                output_types = [
+                    {
+                        "name": output.name,
+                        "type": output.type,
+                        "shape": output.shape
+                    } for output in session.get_outputs()
+                ]
+                
+                onnx_parse_time = time.time() - onnx_parse_start
+                logger.info(f"ONNX parsing completed. Time: {onnx_parse_time:.2f} seconds")
+            except Exception as e:
+                logger.error(f"Error reading ONNX file: {str(e)}")
+                input_types = []
+                output_types = []
+            log_memory_usage()
 
+        ipfs_upload_start = time.time()
         try:
-            file_cid = ipfs_client.add_stream(file.stream)
+            file_cid = ipfs_client.add_bytes(file_content)
+            ipfs_upload_time = time.time() - ipfs_upload_start
+            logger.info(f"IPFS upload completed. CID: {file_cid}, Time: {ipfs_upload_time:.2f} seconds")
         except Exception as e:
             logger.error(f"IPFS upload failed: {str(e)}")
             return Response(f"IPFS upload failed: {str(e)}", status=500)
 
+        log_memory_usage()
+
         total_time = time.time() - start_time
-        logger.info(f"Uploaded file to IPFS with CID: {file_cid}, size: {file_size} bytes, total time: {total_time:.2f} seconds")
-        return jsonify({"filename": file.filename, "cid": file_cid, "size": file_size, "upload_time": total_time})
+        logger.info(f"Total operation completed. Time: {total_time:.2f} seconds")
+        
+        response_data = {
+            "filename": file.filename,
+            "cid": file_cid,
+            "size": file_size,
+            "total_time": total_time,
+            "file_read_time": file_read_time,
+            "onnx_parse_time": onnx_parse_time,
+            "ipfs_upload_time": ipfs_upload_time,
+            "input_types": input_types,
+            "output_types": output_types
+        }
+
+        return jsonify(response_data)
     except Exception as e:
         logger.error(f"Error in upload: {str(e)}", exc_info=True)
         return Response(f"Internal Server Error: {str(e)}", status=500)
