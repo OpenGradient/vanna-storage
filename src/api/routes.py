@@ -49,7 +49,7 @@ def upload():
 
         total_time = time.time() - start_time
         logger.info(f"Uploaded file to IPFS with CID: {file_cid}, size: {file_size} bytes, total time: {total_time:.2f} seconds")
-        return jsonify({"cid": file_cid, "size": file_size, "upload_time": total_time})
+        return jsonify({"filename": file.filename, "cid": file_cid, "size": file_size, "upload_time": total_time})
     except Exception as e:
         logger.error(f"Error in upload: {str(e)}", exc_info=True)
         return Response(f"Internal Server Error: {str(e)}", status=500)
