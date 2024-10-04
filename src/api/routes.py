@@ -1,7 +1,7 @@
 from flask import Blueprint, request, Response, current_app, jsonify, stream_with_context
 from api.ipfs_client import IPFSClient
 import logging
-from werkzeug.datastructures import FileStorage
+from werkzeug.datastructures import FileStorage, Headers
 from werkzeug.utils import secure_filename 
 import time
 import importlib
