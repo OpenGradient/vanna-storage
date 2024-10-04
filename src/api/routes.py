@@ -90,8 +90,8 @@ def upload():
         logger.info(f"File read completed. Size: {file_size} bytes, Time: {file_read_time:.2f} seconds")
         log_memory_usage()
 
-        input_types = []
-        output_types = []
+        input_types = None
+        output_types = None
 
         onnx_parse_time = 0
         if file.filename.lower().endswith('.onnx'):
@@ -123,8 +123,7 @@ def upload():
                 logger.info(f"ONNX parsing completed. Time: {onnx_parse_time:.2f} seconds")
             except Exception as e:
                 logger.error(f"Error reading ONNX file: {str(e)}")
-                input_types = []
-                output_types = []
+                # Keep input_types and output_types as None in case of error
             log_memory_usage()
 
         ipfs_upload_start = time.time()
@@ -149,9 +148,12 @@ def upload():
             "file_read_time": file_read_time,
             "onnx_parse_time": onnx_parse_time,
             "ipfs_upload_time": ipfs_upload_time,
-            "input_types": input_types,
-            "output_types": output_types
         }
+
+        if input_types:
+            response_data["input_types"] = input_types
+        if output_types:
+            response_data["output_types"] = output_types
 
         return jsonify(response_data)
     except Exception as e:
