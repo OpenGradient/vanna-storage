@@ -1,4 +1,3 @@
-# When working locally, uncomment the "ipfs" service and the "depends_on" line in server
 version: '3.8'
 services:
   # ipfs:
@@ -28,6 +27,7 @@ services:
         REBUILD: ${REBUILD:-1}
     ports:
       - "5002:5000"
+    # when working locally, uncomment the "ipfs" service and the "depends_on" line in server
     # depends_on:
     #   ipfs:
     #     condition: service_healthy
@@ -41,6 +41,7 @@ services:
     volumes:
       - ./data:/data
       - ./src:/app
+    command: gunicorn --bind 0.0.0.0:5000 --timeout 300 app:app
 
 volumes:
   ipfs_staging:
