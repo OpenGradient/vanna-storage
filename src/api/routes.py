@@ -1,6 +1,7 @@
 from flask import Blueprint, request, Response, current_app, jsonify, stream_with_context
 from api.ipfs_client import IPFSClient
 import logging
+from http import HTTPStatus
 from io import BytesIO
 import zipfile
 from werkzeug.datastructures import Headers
@@ -9,6 +10,8 @@ from werkzeug.datastructures import FileStorage
 import time
 import tempfile
 import os
+
+MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 10GB
 
 bp = Blueprint('api', __name__)
 
@@ -40,6 +43,9 @@ def upload():
         file.seek(0)  # Go back to the start of the file
 
         logger.info(f"File size: {file_size} bytes")
+
+        if file_size > MAX_FILE_SIZE:
+            return Response(f"Maximum file size limit ({MAX_FILE_SIZE} bytes) exceeded.", status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
 
         try:
             file_cid = ipfs_client.add_stream(file.stream)
