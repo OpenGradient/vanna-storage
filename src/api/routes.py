@@ -1,50 +1,21 @@
 from flask import Blueprint, request, Response, current_app, jsonify, stream_with_context
 from api.ipfs_client import IPFSClient
 import logging
-from werkzeug.datastructures import FileStorage, Headers
-from werkzeug.utils import secure_filename 
-import time
-import importlib
-import os
-import tempfile
+from io import BytesIO
 import zipfile
-import onnx
+from werkzeug.datastructures import Headers
+import json
+from werkzeug.datastructures import FileStorage
+import time
+import tempfile
+import os
 
 bp = Blueprint('api', __name__)
 
 ipfs_client = IPFSClient()
 
-def load_onnx():
-    try:
-        return importlib.import_module('onnx')
-    except ImportError:
-        current_app.logger.warning("ONNX is not installed. ONNX file parsing will be disabled.")
-        return None
-
-def get_type_info(tensor):
-    if tensor.type.HasField('tensor_type'):
-        elem_type = tensor.type.tensor_type.elem_type
-        shape = [dim.dim_value if dim.HasField('dim_value') else None for dim in tensor.type.tensor_type.shape.dim]
-        return {
-            "name": tensor.name,
-            "type": onnx.TensorProto.DataType.Name(elem_type),
-            "shape": shape
-        }
-    elif tensor.type.HasField('sequence_type'):
-        return {
-            "name": tensor.name,
-            "type": "Sequence",
-            "elem_type": get_type_info(tensor.type.sequence_type.elem_type)
-        }
-    elif tensor.type.HasField('map_type'):
-        return {
-            "name": tensor.name,
-            "type": "Map",
-            "key_type": onnx.TensorProto.DataType.Name(tensor.type.map_type.key_type),
-            "value_type": get_type_info(tensor.type.map_type.value_type)
-        }
-    else:
-        return {"name": tensor.name, "type": "Unknown"}
+def is_stream_requested():
+    return request.args.get('stream', '').lower() == 'true'
 
 @bp.route('/upload', methods=['POST'])
 def upload():
@@ -70,36 +41,6 @@ def upload():
 
         logger.info(f"File size: {file_size} bytes")
 
-        input_types = []
-        output_types = []
-
-        # Check if the file is an ONNX file
-        if file and file.filename.lower().endswith('.onnx'):
-            try:
-                # Save the file temporarily
-                temp_path = os.path.join('/tmp', secure_filename(file.filename))
-                file.save(temp_path)
-                
-                # Load ONNX model from the saved file
-                onnx_model = onnx.load(temp_path)
-                
-                # Extract input and output information
-                input_types = [get_type_info(input) for input in onnx_model.graph.input]
-                output_types = [get_type_info(output) for output in onnx_model.graph.output]
-                
-                # Remove the temporary file
-                os.remove(temp_path)
-            except Exception as e:
-                current_app.logger.error(f"Error reading ONNX file: {str(e)}")
-                # Continue with the upload even if ONNX parsing fails
-                input_types = []
-                output_types = []
-            finally:
-                file.seek(0)  # Reset file pointer to the beginning
-        else:
-            input_types = []
-            output_types = []
-
         try:
             file_cid = ipfs_client.add_stream(file.stream)
         except Exception as e:
@@ -108,26 +49,10 @@ def upload():
 
         total_time = time.time() - start_time
         logger.info(f"Uploaded file to IPFS with CID: {file_cid}, size: {file_size} bytes, total time: {total_time:.2f} seconds")
-        
-        response_data = {
-            "filename": file.filename,
-            "cid": file_cid,
-            "size": file_size,
-            "upload_time": total_time
-        }
-        
-        if input_types:
-            response_data["input_types"] = input_types
-        if output_types:
-            response_data["output_types"] = output_types
-
-        return jsonify(response_data)
+        return jsonify({"cid": file_cid, "size": file_size, "upload_time": total_time})
     except Exception as e:
         logger.error(f"Error in upload: {str(e)}", exc_info=True)
         return Response(f"Internal Server Error: {str(e)}", status=500)
-
-def is_stream_requested():
-    return request.args.get('stream', '').lower() == 'true'
 
 @bp.route('/download', methods=['GET'])
 def download():
