@@ -71,7 +71,7 @@ def upload():
                 logger.error(f"Error reading ONNX file: {str(e)}")
 
         try:
-            file_cid = ipfs_client.add_bytes(file_content)
+            file_cid = ipfs_client.add_stream(file_content)
         except Exception as e:
             logger.error(f"IPFS upload failed: {str(e)}")
             return Response(f"IPFS upload failed: {str(e)}", status=500)
