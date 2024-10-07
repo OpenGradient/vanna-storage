@@ -10,6 +10,7 @@ from werkzeug.datastructures import FileStorage
 import time
 import tempfile
 import os
+import onnxruntime as ort
 
 MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 10GB
 
@@ -22,19 +23,16 @@ def is_stream_requested():
 
 @bp.route('/upload', methods=['POST'])
 def upload():
-    try:
-        logger = logging.getLogger(__name__)
-        logger.info("Upload request received")
-        start_time = time.time()
+    logger = logging.getLogger(__name__)
+    logger.info("Upload request received")
+    start_time = time.time()
 
+    try:
         if 'file' not in request.files:
-            logger.error("No file part in the request")
             return Response('No file part', status=400)
         
         file: FileStorage = request.files['file']
-
         if file.filename == '':
-            logger.error("No selected file")
             return Response('No selected file', status=400)
 
         # Get the file size
@@ -42,10 +40,35 @@ def upload():
         file_size = file.tell()  # Get the position (size)
         file.seek(0)  # Go back to the start of the file
 
-        logger.info(f"File size: {file_size} bytes")
-
         if file_size > MAX_FILE_SIZE:
             return Response(f"Maximum file size limit ({MAX_FILE_SIZE} bytes) exceeded.", status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+
+        file_content = file.read()
+
+        input_types = None
+        output_types = None
+
+        if file.filename.lower().endswith('.onnx'):
+            try:
+                file_object = BytesIO(file_content)
+                session = ort.InferenceSession(file_object.getvalue())
+                
+                input_types = [
+                    {
+                        "name": input.name,
+                        "type": input.type,
+                        "shape": input.shape
+                    } for input in session.get_inputs()
+                ]
+                output_types = [
+                    {
+                        "name": output.name,
+                        "type": output.type,
+                        "shape": output.shape
+                    } for output in session.get_outputs()
+                ]
+            except Exception as e:
+                logger.error(f"Error reading ONNX file: {str(e)}")
 
         try:
             file_cid = ipfs_client.add_stream(file.stream)
@@ -54,8 +77,20 @@ def upload():
             return Response(f"IPFS upload failed: {str(e)}", status=500)
 
         total_time = time.time() - start_time
-        logger.info(f"Uploaded file to IPFS with CID: {file_cid}, size: {file_size} bytes, total time: {total_time:.2f} seconds")
-        return jsonify({"filename": file.filename, "cid": file_cid, "size": file_size, "upload_time": total_time})
+        
+        response_data = {
+            "filename": file.filename,
+            "cid": file_cid,
+            "size": file_size,
+            "total_time": total_time,
+        }
+
+        if input_types:
+            response_data["input_types"] = input_types
+        if output_types:
+            response_data["output_types"] = output_types
+
+        return jsonify(response_data)
     except Exception as e:
         logger.error(f"Error in upload: {str(e)}", exc_info=True)
         return Response(f"Internal Server Error: {str(e)}", status=500)
