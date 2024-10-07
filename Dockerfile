@@ -37,4 +37,4 @@ EXPOSE 5000
 
 # Run app.py when the container launches
 # CMD ["gunicorn", "--workers=3", "--bind=0.0.0.0:5000", "app:app"]
-CMD ["gunicorn", "--workers", "1", "--threads", "5", "--timeout", "3600", "--max-requests", "1000", "--max-requests-jitter", "50", "--limit-request-line", "4094", "--limit-request-fields", "100", "--max-requests", "10000", "--preload", "--worker-tmp-dir", "/dev/shm", "--log-level", "debug", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--workers", "1", "--threads", "5", "--timeout", "3600", "--max-requests-jitter", "50", "--limit-request-line", "4094", "--limit-request-fields", "100", "--max-requests", "10000", "--preload", "--worker-tmp-dir", "/dev/shm", "--log-level", "debug", "--bind", "0.0.0.0:5000", "app:app"]
