@@ -10,8 +10,6 @@ from werkzeug.datastructures import FileStorage
 import time
 import tempfile
 import os
-from memory_profiler import profile
-import psutil
 import onnxruntime as ort
 
 MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 10GB
@@ -23,87 +21,38 @@ ipfs_client = IPFSClient()
 def is_stream_requested():
     return request.args.get('stream', '').lower() == 'true'
 
-import onnx
-from onnx import ModelProto
-import io
-
-def load_onnx():
-    try:
-        return onnx
-    except ImportError:
-        current_app.logger.warning("ONNX is not installed. ONNX file parsing will be disabled.")
-        return None
-
-def get_type_info(tensor):
-    if tensor.type.HasField('tensor_type'):
-        elem_type = tensor.type.tensor_type.elem_type
-        shape = [dim.dim_value if dim.HasField('dim_value') else None for dim in tensor.type.tensor_type.shape.dim]
-        return {
-            "name": tensor.name,
-            "type": onnx.TensorProto.DataType.Name(elem_type),
-            "shape": shape
-        }
-    elif tensor.type.HasField('sequence_type'):
-        return {
-            "name": tensor.name,
-            "type": "Sequence",
-            "elem_type": get_type_info(tensor.type.sequence_type.elem_type)
-        }
-    elif tensor.type.HasField('map_type'):
-        return {
-            "name": tensor.name,
-            "type": "Map",
-            "key_type": onnx.TensorProto.DataType.Name(tensor.type.map_type.key_type),
-            "value_type": get_type_info(tensor.type.map_type.value_type)
-        }
-    else:
-        return {"name": tensor.name, "type": "Unknown"}
-
 @bp.route('/upload', methods=['POST'])
-@profile
 def upload():
     logger = logging.getLogger(__name__)
     logger.info("Upload request received")
     start_time = time.time()
 
-    def log_memory_usage():
-        process = psutil.Process()
-        mem_info = process.memory_info()
-        logger.info(f"Memory usage: {mem_info.rss / 1024 / 1024:.2f} MB")
-
-    log_memory_usage()
-
     try:
         if 'file' not in request.files:
-            logger.error("No file part in the request")
             return Response('No file part', status=400)
         
-        file = request.files['file']
+        file: FileStorage = request.files['file']
         if file.filename == '':
-            logger.error("No selected file")
             return Response('No selected file', status=400)
 
-        file_read_start = time.time()
+        # Get the file size
+        file.seek(0, 2)  # Go to the end of the file
+        file_size = file.tell()  # Get the position (size)
+        file.seek(0)  # Go back to the start of the file
+
+        if file_size > MAX_FILE_SIZE:
+            return Response(f"Maximum file size limit ({MAX_FILE_SIZE} bytes) exceeded.", status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+
         file_content = file.read()
-        file_size = len(file_content)
-        file_read_time = time.time() - file_read_start
-        logger.info(f"File read completed. Size: {file_size} bytes, Time: {file_read_time:.2f} seconds")
-        log_memory_usage()
 
         input_types = None
         output_types = None
 
-        onnx_parse_time = 0
         if file.filename.lower().endswith('.onnx'):
-            onnx_parse_start = time.time()
             try:
-                # Create an in-memory file object
-                file_object = io.BytesIO(file_content)
-                
-                # Load the model using ONNX Runtime
+                file_object = BytesIO(file_content)
                 session = ort.InferenceSession(file_object.getvalue())
                 
-                # Get input and output information
                 input_types = [
                     {
                         "name": input.name,
@@ -118,36 +67,22 @@ def upload():
                         "shape": output.shape
                     } for output in session.get_outputs()
                 ]
-                
-                onnx_parse_time = time.time() - onnx_parse_start
-                logger.info(f"ONNX parsing completed. Time: {onnx_parse_time:.2f} seconds")
             except Exception as e:
                 logger.error(f"Error reading ONNX file: {str(e)}")
-                # Keep input_types and output_types as None in case of error
-            log_memory_usage()
 
-        ipfs_upload_start = time.time()
         try:
             file_cid = ipfs_client.add_bytes(file_content)
-            ipfs_upload_time = time.time() - ipfs_upload_start
-            logger.info(f"IPFS upload completed. CID: {file_cid}, Time: {ipfs_upload_time:.2f} seconds")
         except Exception as e:
             logger.error(f"IPFS upload failed: {str(e)}")
             return Response(f"IPFS upload failed: {str(e)}", status=500)
 
-        log_memory_usage()
-
         total_time = time.time() - start_time
-        logger.info(f"Total operation completed. Time: {total_time:.2f} seconds")
         
         response_data = {
             "filename": file.filename,
             "cid": file_cid,
             "size": file_size,
             "total_time": total_time,
-            "file_read_time": file_read_time,
-            "onnx_parse_time": onnx_parse_time,
-            "ipfs_upload_time": ipfs_upload_time,
         }
 
         if input_types:
