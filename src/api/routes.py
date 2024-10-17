@@ -29,10 +29,12 @@ def upload():
 
     try:
         if 'file' not in request.files:
+            logger.error("No file part in the request")
             return Response('No file part', status=400)
         
         file: FileStorage = request.files['file']
         if file.filename == '':
+            logger.error("No selected file")
             return Response('No selected file', status=400)
 
         # Get the file size
@@ -40,16 +42,18 @@ def upload():
         file_size = file.tell()  # Get the position (size)
         file.seek(0)  # Go back to the start of the file
 
-        if file_size > MAX_FILE_SIZE:
-            return Response(f"Maximum file size limit ({MAX_FILE_SIZE} bytes) exceeded.", status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        logger.info(f"Uploading file: {file.filename}, size: {file_size} bytes")
 
-        file_content = file.read()
+        if file_size > MAX_FILE_SIZE:
+            logger.error(f"File size {file_size} exceeds maximum allowed size {MAX_FILE_SIZE}")
+            return Response(f"Maximum file size limit ({MAX_FILE_SIZE} bytes) exceeded.", status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
 
         input_types = None
         output_types = None
 
         if file.filename.lower().endswith('.onnx'):
             try:
+                file_content = file.read()
                 file_object = BytesIO(file_content)
                 session = ort.InferenceSession(file_object.getvalue())
                 
@@ -69,9 +73,13 @@ def upload():
                 ]
             except Exception as e:
                 logger.error(f"Error reading ONNX file: {str(e)}")
+            finally:
+                file.seek(0)  # Reset file pointer after ONNX processing
 
         try:
-            file_cid = ipfs_client.add_stream(file.stream)
+            logger.info(f"Starting IPFS upload for file: {file.filename}")
+            file_cid = ipfs_client.add_stream(file)
+            logger.info(f"IPFS upload completed. CID: {file_cid}")
         except Exception as e:
             logger.error(f"IPFS upload failed: {str(e)}")
             return Response(f"IPFS upload failed: {str(e)}", status=500)

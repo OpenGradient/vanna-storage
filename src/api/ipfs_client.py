@@ -30,8 +30,14 @@ class IPFSClient:
                 'progress': 'false',
             }
 
+            # Ensure we're at the beginning of the file
+            file_stream.seek(0)
+
+            # Read the entire file content
+            file_content = file_stream.read()
+
             files = {
-                'file': ('filename', file_stream, 'application/octet-stream')
+                'file': ('filename', file_content, 'application/octet-stream')
             }
 
             logger.info(f"Sending POST request to {self.base_url}/add")
@@ -39,19 +45,14 @@ class IPFSClient:
                 f'{self.base_url}/add',
                 files=files,
                 params=params,
-                stream=True
             )
             logger.info(f"Response status code: {response.status_code}")
             logger.info(f"Response headers: {response.headers}")
+
             response.raise_for_status()
 
-            # The response is a stream of JSON objects, the last one contains the final CID
-            final_cid = None
-            for line in response.iter_lines():
-                if line:
-                    result = json.loads(line)
-                    if 'Hash' in result:
-                        final_cid = result['Hash']
+            result = response.json()
+            final_cid = result.get('Hash')
 
             if final_cid is None:
                 raise Exception("No CID received from IPFS")
