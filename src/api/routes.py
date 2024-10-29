@@ -19,12 +19,11 @@ bp = Blueprint('api', __name__)
 
 ipfs_client = IPFSClient()
 
-# Initialize at the top of the file, after imports
-options = {
+dd_options = {
     'statsd_host': 'localhost',
     'statsd_port': 8125
 }
-initialize(**options)
+initialize(**dd_options)
 
 def is_stream_requested():
     return request.args.get('stream', '').lower() == 'true'
