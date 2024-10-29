@@ -36,10 +36,10 @@ def upload():
 
     try:
         # Increment upload attempts counter
-        statsd.increment('vanna.storage.uploads.attempt')
+        statsd.increment('opengradient.storage.uploads.attempt')
 
         if 'file' not in request.files:
-            statsd.increment('vanna.storage.uploads.error', tags=['error:no_file'])
+            statsd.increment('opengradient.storage.uploads.error', tags=['error:no_file'])
             logger.error("No file part in the request")
             return Response('No file part', status=400)
         
@@ -110,11 +110,11 @@ def upload():
             response_data["output_types"] = output_types
 
         # On successful upload
-        statsd.increment('vanna.storage.uploads.success')
+        statsd.increment('opengradient.storage.uploads.success')
         return jsonify(response_data)
     except Exception as e:
         # Track failures
-        statsd.increment('vanna.storage.uploads.error', tags=['error:exception'])
+        statsd.increment('opengradient.storage.uploads.error', tags=['error:exception'])
         logger.error(f"Error in upload: {str(e)}", exc_info=True)
         return Response(f"Internal Server Error: {str(e)}", status=500)
 
