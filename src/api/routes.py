@@ -13,7 +13,7 @@ import os
 import onnxruntime as ort
 from datadog import initialize, statsd
 
-MAX_FILE_SIZE = 10 * 1024 * 1025 * 1024  # 10GB
+MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 10GB
 
 bp = Blueprint('api', __name__)
 
