@@ -11,12 +11,19 @@ import time
 import tempfile
 import os
 import onnxruntime as ort
+from datadog import initialize, statsd
 
 MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 10GB
 
 bp = Blueprint('api', __name__)
 
 ipfs_client = IPFSClient()
+
+dd_options = {
+    'statsd_host': 'localhost',
+    'statsd_port': 8125
+}
+initialize(**dd_options)
 
 def is_stream_requested():
     return request.args.get('stream', '').lower() == 'true'
@@ -28,7 +35,11 @@ def upload():
     start_time = time.time()
 
     try:
+        # Increment upload attempts counter
+        statsd.increment('opengradient.storage.uploads.attempt')
+
         if 'file' not in request.files:
+            statsd.increment('opengradient.storage.uploads.error', tags=['error:no_file'])
             logger.error("No file part in the request")
             return Response('No file part', status=400)
         
@@ -98,8 +109,12 @@ def upload():
         if output_types:
             response_data["output_types"] = output_types
 
+        # On successful upload
+        statsd.increment('opengradient.storage.uploads.success')
         return jsonify(response_data)
     except Exception as e:
+        # Track failures
+        statsd.increment('opengradient.storage.uploads.error', tags=['error:exception'])
         logger.error(f"Error in upload: {str(e)}", exc_info=True)
         return Response(f"Internal Server Error: {str(e)}", status=500)
 
